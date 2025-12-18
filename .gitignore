@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Modelos (demasiado pesados para GitHub)
+*.onnx
+*.bin
+
+# Temporales de la app
+uploads/
+*.wav
+*.mp3
+
+# IDEs
+.vscode/
+.idea/

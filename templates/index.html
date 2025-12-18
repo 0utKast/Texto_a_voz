@@ -284,8 +284,12 @@
         <div class="audio-container" id="audio-container">
             <div id="status-bar" style="margin-bottom: 12px; font-size: 0.85rem; color: #818cf8; font-weight: 300;">
             </div>
-            <label id="player-label">Resultado:</label>
-            <audio id="audio-player" controls></audio>
+            <label id="player-label">Cargando...</label>
+            <div id="players-wrapper" style="position: relative; height: 40px; margin-top: 8px;">
+                <audio id="audio-player-a" controls style="width: 100%; position: absolute; top:0; left:0;"></audio>
+                <audio id="audio-player-b" controls
+                    style="width: 100%; position: absolute; top:0; left:0; display: none;"></audio>
+            </div>
         </div>
     </div>
 
@@ -296,7 +300,10 @@
         const textInput = document.getElementById('text');
         const speedInput = document.getElementById('speed');
         const speedDisplay = document.getElementById('speed-display');
-        const audioPlayer = document.getElementById('audio-player');
+
+        const playerA = document.getElementById('audio-player-a');
+        const playerB = document.getElementById('audio-player-b');
+
         const audioContainer = document.getElementById('audio-container');
         const spinner = document.getElementById('spinner');
         const btnText = document.getElementById('btn-text');
@@ -308,10 +315,17 @@
 
         let voices = [];
         let currentAudioUrl = null;
-        let audioQueue = [];
-        let isPlaying = false;
-        let masterBlobs = [];
         let totalChunks = 0;
+        let chunks = [];
+        let chunkBlobs = [];
+        let currentChunkIndex = -1;
+        let isGenerating = false;
+        let objectUrls = new Set(); // Para gestión de memoria
+
+        // Configuracion para pre-carga
+        const PRELOAD_AHEAD = 4; // Aumentado para crear un buffer mayor
+        let nextChunkToGenerate = 0;
+        let activePlayer = 'A';
 
         // Cargar voces al inicio
         async function loadVoices() {
@@ -368,7 +382,6 @@
             }
         };
 
-        // Concatenar WAVs (Une los bloques recibidos en un solo archivo)
         async function concatenateWavBlobs(blobs) {
             if (blobs.length === 0) return null;
             if (blobs.length === 1) return blobs[0];
@@ -389,17 +402,154 @@
             return new Blob([combinedBuffer], { type: 'audio/wav' });
         }
 
-        async function playQueue() {
-            if (isPlaying || audioQueue.length === 0) return;
-            isPlaying = true;
-            const nextAudio = audioQueue.shift();
-            audioPlayer.src = nextAudio;
+        async function generateNextChunks(voiceId, speed, lang) {
+            if (isGenerating || nextChunkToGenerate >= totalChunks) return;
+            if (nextChunkToGenerate - currentChunkIndex > PRELOAD_AHEAD) return;
+
+            isGenerating = true;
+            const i = nextChunkToGenerate;
+            statusBar.textContent = `Generando bloque ${i + 1} de ${totalChunks}...`;
+
+            try {
+                const res = await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: chunks[i], voice: voiceId, speed, lang })
+                });
+
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    objectUrls.add(url);
+
+                    chunkBlobs[i] = { blob, url };
+                    nextChunkToGenerate++;
+                    isGenerating = false; // Desbloquear antes de la siguiente llamada
+
+                    // Pre-generar siguiente si hay hueco
+                    generateNextChunks(voiceId, speed, lang);
+
+                    if (i === 0 && currentChunkIndex === -1) {
+                        playNextChunk();
+                        spinner.style.display = 'none';
+                        btnText.textContent = 'Escuchando...';
+                    } else if (i === currentChunkIndex + 1) {
+                        preloadIntoInactivePlayer(i);
+                    }
+                } else {
+                    isGenerating = false;
+                }
+            } catch (err) {
+                console.error("Error generating chunk:", err);
+                isGenerating = false;
+            }
+        }
+
+        function createUrl(blob) {
+            const url = URL.createObjectURL(blob);
+            objectUrls.add(url);
+            return url;
+        }
+
+        function clearObjectUrls() {
+            objectUrls.forEach(url => URL.revokeObjectURL(url));
+            objectUrls.clear();
+        }
+
+        function preloadIntoInactivePlayer(chunkIdx) {
+            if (chunkIdx >= totalChunks) return;
+            const inactivePlayer = activePlayer === 'A' ? playerB : playerA;
+            if (chunkBlobs[chunkIdx]) {
+                inactivePlayer.src = chunkBlobs[chunkIdx].url;
+                inactivePlayer.load();
+            }
+        }
+
+        async function playNextChunk() {
+            const nextIdx = currentChunkIndex + 1;
+            if (nextIdx >= totalChunks) {
+                finishGeneration();
+                return;
+            }
+
+            if (!chunkBlobs[nextIdx]) {
+                statusBar.textContent = `⌛ Esperando al bloque ${nextIdx + 1} (se está generando)...`;
+                setTimeout(playNextChunk, 1000);
+                return;
+            }
+
+            currentChunkIndex = nextIdx;
+
+            const currentPlayer = activePlayer === 'A' ? playerA : playerB;
+            const nextPlayer = activePlayer === 'A' ? playerB : playerA;
+
+            // Optimización: No recargar src si ya está cargado (precargado)
+            const chunk = chunkBlobs[currentChunkIndex];
+            if (currentPlayer.src !== chunk.url) {
+                currentPlayer.src = chunk.url;
+                await currentPlayer.load();
+            }
+
             audioContainer.style.display = 'block';
-            audioPlayer.onended = () => {
-                isPlaying = false;
-                playQueue();
+            currentPlayer.style.display = 'block';
+            nextPlayer.style.display = 'none';
+
+            playerLabel.textContent = `🔊 Reproduciendo parte ${currentChunkIndex + 1} de ${totalChunks}`;
+            statusBar.textContent = "Iniciando audio...";
+
+            try {
+                await currentPlayer.play();
+                statusBar.textContent = "✓ Reproduciendo.";
+            } catch (err) {
+                console.error("Error al iniciar reproducción:", err);
+                statusBar.innerHTML = `<span style="color: #f87171;">⚠️ Error de reproducción o bloqueo de audio. </span> 
+                    <button id="retry-play-btn" style="padding: 2px 8px; font-size: 0.7rem; display: inline-block; width: auto; margin-left: 10px; cursor: pointer; background: #6366f1; border-radius: 4px; border: none; color: white;">
+                    ▶️ Reintentar</button>`;
+                const retryBtn = document.getElementById('retry-play-btn');
+                if (retryBtn) {
+                    retryBtn.onclick = () => {
+                        currentPlayer.play().then(() => {
+                            statusBar.textContent = "✓ Reproduciendo (manual).";
+                        }).catch(e => console.error("Retry failed:", e));
+                    };
+                }
+            }
+
+            // Pre-cargar el SIGUIENTE en el reproductor inactivo
+            preloadIntoInactivePlayer(currentChunkIndex + 1);
+
+            currentPlayer.onended = () => {
+                activePlayer = activePlayer === 'A' ? 'B' : 'A';
+                playNextChunk();
+
+                const voiceId = voiceSelect.value;
+                const speed = speedInput.value;
+                const lang = voiceSelect.options[voiceSelect.selectedIndex].dataset.lang;
+                generateNextChunks(voiceId, speed, lang);
             };
-            audioPlayer.play();
+        }
+
+        async function finishGeneration() {
+            statusBar.textContent = "Finalizando audio completo...";
+            const filteredBlobs = chunkBlobs.filter(b => b).map(b => b.blob);
+            const finalBlob = await concatenateWavBlobs(filteredBlobs);
+            clearObjectUrls();
+            currentAudioUrl = URL.createObjectURL(finalBlob);
+            objectUrls.add(currentAudioUrl);
+
+            downloadBtn.disabled = false;
+            statusBar.textContent = "✓ Audio completo generado y listo para descargar.";
+
+            playerA.onended = null;
+            playerB.onended = null;
+            playerA.src = currentAudioUrl;
+            playerA.style.display = 'block';
+            playerB.style.display = 'none';
+            playerLabel.textContent = "Resultado Final (Audio Completo):";
+
+            generateBtn.disabled = false;
+            spinner.style.display = 'none';
+            btnText.textContent = 'Generar Voz IA';
         }
 
         generateBtn.onclick = async () => {
@@ -409,14 +559,23 @@
             const lang = voiceSelect.options[voiceSelect.selectedIndex].dataset.lang;
             if (!text.trim()) { alert('Escribe algo de texto.'); return; }
 
-            // Reset
-            audioQueue = [];
-            masterBlobs = [];
-            audioPlayer.pause();
-            isPlaying = false;
+            currentChunkIndex = -1;
+            nextChunkToGenerate = 0;
+            chunkBlobs = [];
+            isGenerating = false;
+            activePlayer = 'A';
+            clearObjectUrls();
+
+            playerA.pause();
+            playerB.pause();
+            playerA.src = "";
+            playerB.src = "";
+            playerA.onended = null;
+            playerB.onended = null;
+
             downloadBtn.disabled = true;
             statusBar.textContent = "Analizando texto...";
-            playerLabel.textContent = "Reproduciendo por partes...";
+            playerLabel.textContent = "Procesando...";
 
             generateBtn.disabled = true;
             spinner.style.display = 'block';
@@ -428,53 +587,21 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
-                const { chunks } = await splitRes.json();
+                const data = await splitRes.json();
+                chunks = data.chunks;
                 totalChunks = chunks.length;
-                if (totalChunks === 0) return;
 
-                for (let i = 0; i < totalChunks; i++) {
-                    statusBar.textContent = `Generando bloque ${i + 1} de ${totalChunks}...`;
-                    const res = await fetch('/api/speak', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: chunks[i], voice: voiceId, speed, lang })
-                    });
-                    if (res.ok) {
-                        const blob = await res.blob();
-                        masterBlobs.push(blob);
-                        const url = URL.createObjectURL(blob);
-                        audioQueue.push(url);
-                        if (!isPlaying) {
-                            playQueue();
-                            spinner.style.display = 'none';
-                            btnText.textContent = 'Escuchando...';
-                        }
-                    }
+                if (totalChunks === 0) {
+                    alert("No se pudo procesar el texto.");
+                    generateBtn.disabled = false;
+                    spinner.style.display = 'none';
+                    return;
                 }
 
-                // Finalizacion: Unir todo para el reproductor final y descarga
-                statusBar.textContent = "Finalizando audio completo...";
-                const finalBlob = await concatenateWavBlobs(masterBlobs);
-                if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
-                currentAudioUrl = URL.createObjectURL(finalBlob);
-
-                // Una vez terminado, permitimos descarga del archivo COMPLETO
-                downloadBtn.disabled = false;
-                statusBar.textContent = "✓ Audio completo generado y listo para descargar.";
-
-                // Actualizar el reproductor con el archivo completo (permite buscar/retroceder en todo el audio)
-                // Esperamos a que termine el chunk actual para no interrumpir la experiencia fluida
-                const checkFinished = setInterval(() => {
-                    if (!isPlaying && audioQueue.length === 0) {
-                        audioPlayer.src = currentAudioUrl;
-                        playerLabel.textContent = "Resultado Final (Audio Completo):";
-                        clearInterval(checkFinished);
-                    }
-                }, 500);
+                generateNextChunks(voiceId, speed, lang);
 
             } catch (err) {
                 alert('Error en la comunicación con el servidor.');
-            } finally {
                 generateBtn.disabled = false;
                 spinner.style.display = 'none';
                 btnText.textContent = 'Generar Voz IA';

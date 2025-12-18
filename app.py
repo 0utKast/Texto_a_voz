@@ -47,10 +47,15 @@ def split_text(text):
     
     chunks = []
     current_chunk = ""
-    target_length = 800 # Caracteres por bloque (~30-45 segundos de voz)
+    
+    # Asimetría: Primer trozo grande para ganar tiempo, resto pequeños para fluidez
+    FIRST_CHUNK_TARGET = 3000 # ~2-2.5 minutos
+    NORMAL_CHUNK_TARGET = 1000 # ~45-60 segundos
     
     for s in sentences:
-        if len(current_chunk) + len(s) < target_length:
+        target = FIRST_CHUNK_TARGET if len(chunks) == 0 else NORMAL_CHUNK_TARGET
+        
+        if len(current_chunk) + len(s) < target:
             current_chunk += " " + s
         else:
             if current_chunk:

@@ -8,7 +8,8 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 
 - **Calidad Profesional:** Voces neuronales naturales comparables a servicios de pago.
 - **Multiformato:** Carga archivos PDF, DOCX o TXT directamente.
-- **Streaming Inteligente:** Empieza a escuchar casi al instante incluso en textos largos.
+- **Streaming de Alta Continuidad (Gapless):** Sistema de doble reproductor de audio sincronizado que elimina las pausas entre fragmentos de texto.
+- **Asimetría de Procesamiento:** El primer bloque se genera con mayor tamaño para inicio rápido, mientras los siguientes se precargan dinámicamente en segundo plano.
 - **100% Privado:** Tus datos nunca salen de tu ordenador. Funciona totalmente offline.
 - **Sin Costes:** Sin suscripciones, sin límites de caracteres, sin publicidad.
 

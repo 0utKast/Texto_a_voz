@@ -3,11 +3,12 @@ import io
 import time
 import re
 import soundfile as sf
-import fitz # PyMuPDF
-from docx import Document
+import numpy as np
 from flask import Flask, render_template, request, send_file, jsonify
-from kokoro_onnx import Kokoro
 from werkzeug.utils import secure_filename
+
+from manager import BatchManager
+from processor import TextProcessor
 
 # Configurar ruta de espeak-ng para Windows
 ESPEAK_PATH = r"C:\Program Files\eSpeak NG"
@@ -15,57 +16,16 @@ os.environ["PHONEMIZER_ESPEAK_PATH"] = ESPEAK_PATH
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['PROJECTS_FOLDER'] = 'projects'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['PROJECTS_FOLDER'], exist_ok=True)
 
-# Cargar el modelo globalmente para rapidez
+# Inicializar Manager y Processor
+# Nota: manager inicializa Kokoro internamente
 MODEL_PATH = "kokoro-v1.0.onnx"
 VOICES_PATH = "voices-v1.0.bin"
-
-print("Inicializando modelo Kokoro-82M...")
-kokoro = Kokoro(MODEL_PATH, VOICES_PATH)
-print("Modelo listo.")
-
-def extract_text_from_file(filepath):
-    ext = filepath.split('.')[-1].lower()
-    text = ""
-    if ext == 'pdf':
-        with fitz.open(filepath) as doc:
-            for page in doc:
-                text += page.get_text()
-    elif ext == 'docx':
-        doc = Document(filepath)
-        text = "\n".join([para.text for para in doc.paragraphs])
-    elif ext == 'txt':
-        with open(filepath, 'r', encoding='utf-8') as f:
-            text = f.read()
-    return text.strip()
-
-def split_text(text):
-    # Split by sentences (simple regex)
-    raw_sentences = re.split(r'(?<=[.!?])\s+', text)
-    sentences = [s.strip() for s in raw_sentences if s.strip()]
-    
-    chunks = []
-    current_chunk = ""
-    
-    # Asimetría: Primer trozo grande para ganar tiempo, resto pequeños para fluidez
-    FIRST_CHUNK_TARGET = 3000 # ~2-2.5 minutos
-    NORMAL_CHUNK_TARGET = 1000 # ~45-60 segundos
-    
-    for s in sentences:
-        target = FIRST_CHUNK_TARGET if len(chunks) == 0 else NORMAL_CHUNK_TARGET
-        
-        if len(current_chunk) + len(s) < target:
-            current_chunk += " " + s
-        else:
-            if current_chunk:
-                chunks.append(current_chunk.strip())
-            current_chunk = s
-            
-    if current_chunk:
-        chunks.append(current_chunk.strip())
-        
-    return chunks
+manager = BatchManager(app.config['PROJECTS_FOLDER'], MODEL_PATH, VOICES_PATH)
+processor = TextProcessor()
 
 # Mapeo de prefijos de voz a idiomas para el frontend
 VOICE_LANG_MAP = {
@@ -103,7 +63,7 @@ def extract():
     file.save(filepath)
     
     try:
-        text = extract_text_from_file(filepath)
+        text = processor.extract_text(filepath)
         return jsonify({"text": text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -117,12 +77,16 @@ def split():
     text = data.get("text", "")
     if not text:
         return jsonify({"chunks": []})
-    chunks = split_text(text)
+    
+    # Usar el procesador con chunk_len asimétrico si se desea, 
+    # pero para simplificar usaremos el estándar del procesador
+    chunks = processor.split_into_chunks(text)
     return jsonify({"chunks": chunks})
 
 @app.route("/api/voices")
 def get_voices():
-    all_voices = kokoro.get_voices()
+    # Usar el modelo interno del manager
+    all_voices = manager.kokoro.get_voices()
     voices_data = []
     for v in all_voices:
         prefix = v[:2]
@@ -135,8 +99,72 @@ def get_voices():
         })
     return jsonify(voices_data)
 
+@app.route("/api/projects", methods=["GET"])
+def get_projects():
+    return jsonify(manager.get_projects())
+
+@app.route("/api/projects/create", methods=["POST"])
+def create_project():
+    data = request.json
+    name = data.get("name", "Documento")
+    text = data.get("text", "")
+    voice = data.get("voice", "af_nicole")
+    speed = float(data.get("speed", 1.0))
+    lang = data.get("lang", "en-us")
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    # Usar el nuevo split asimétrico: 3000 caracteres para el primero, el resto 1000
+    chunks = processor.split_into_chunks(text, target_len=1000, first_chunk_len=3000)
+    project_id = manager.create_project(name, chunks, voice, speed, lang)
+    return jsonify({"project_id": project_id, "chunks": chunks})
+
+@app.route("/api/projects/<project_id>/chunk/<int:chunk_id>/prepare", methods=["POST"])
+def prepare_chunk(project_id, chunk_id):
+    try:
+        manager.process_chunk(project_id, chunk_id)
+        return jsonify({"status": "ready", "chunk_id": chunk_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/projects/<project_id>/delete", methods=["DELETE"])
+def delete_project(project_id):
+    try:
+        if manager.delete_project(project_id):
+            return jsonify({"status": "deleted", "project_id": project_id})
+        else:
+            return jsonify({"error": "Project not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/projects/<project_id>/chunk/<int:chunk_id>")
+def get_chunk_audio(project_id, chunk_id):
+    # Intentar obtener el chunk del disco si ya existe
+    project_path = os.path.join(app.config['PROJECTS_FOLDER'], project_id)
+    chunk_path = os.path.join(project_path, "audio_chunks", f"chunk_{chunk_id}.wav")
+
+    if os.path.exists(chunk_path):
+        return send_file(chunk_path, mimetype="audio/wav")
+
+    # Si no existe, generarlo (esta es la parte "on-demand" del streaming persistente)
+    try:
+        # Nota: manager.process_next_chunk procesa el SIGUIENTE pendiente.
+        # Pero aquí queremos un chunk específico. Necesitamos un método para eso.
+        # Por simplicidad, si estamos en streaming, solemos ir en orden.
+        # Pero para ser robustos, añadiremos un método 'process_specific_chunk' al manager.
+        # O simplemente usamos el mecanismo de 'process_next_chunk' si el ID coincide.
+        
+        # Por ahora, usemos el manager para generar este chunk específico.
+        # Modificaré manager.py para añadir process_chunk(pid, cid)
+        manager.process_chunk(project_id, chunk_id)
+        return send_file(chunk_path, mimetype="audio/wav")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/speak", methods=["POST"])
 def speak():
+    # Mantener compatibilidad con el modo "usar sin guardar" si se desea
     data = request.json
     text = data.get("text", "")
     voice = data.get("voice", "af_nicole")
@@ -147,19 +175,12 @@ def speak():
         return jsonify({"error": "No text provided"}), 400
 
     try:
-        start_time = time.time()
-        samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang=lang)
-        duration = time.time() - start_time
-        
-        # Guardar en buffer de memoria
+        samples, sample_rate = manager.kokoro.create(text, voice=voice, speed=speed, lang=lang)
         buffer = io.BytesIO()
         sf.write(buffer, samples, sample_rate, format='WAV')
         buffer.seek(0)
-        
-        print(f"Generado: '{text[:20]}...' en {duration:.2f}s")
-        return send_file(buffer, mimetype="audio/wav", as_attachment=False)
+        return send_file(buffer, mimetype="audio/wav")
     except Exception as e:
-        print(f"Error en generación: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":

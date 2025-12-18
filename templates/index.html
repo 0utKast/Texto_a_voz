@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kokoro Pro - AI Text to Speech</title>
+    <title>Kokoro Pro - AI Text to Speech (Gapless Streaming)</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -36,7 +36,7 @@
 
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 900px;
             background: var(--glass);
             backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
@@ -44,6 +44,9 @@
             padding: 40px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             animation: fadeIn 0.8s ease-out;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 30px;
         }
 
         @keyframes fadeIn {
@@ -59,18 +62,16 @@
         }
 
         h1 {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 600;
             margin-bottom: 8px;
             background: linear-gradient(to right, #818cf8, #c084fc);
             background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-align: center;
         }
 
         p.subtitle {
-            text-align: center;
             color: #94a3b8;
             margin-bottom: 32px;
             font-weight: 300;
@@ -90,7 +91,7 @@
 
         textarea {
             width: 100%;
-            height: 150px;
+            height: 180px;
             background: rgba(0, 0, 0, 0.2);
             border: 1px solid var(--glass-border);
             border-radius: 12px;
@@ -111,14 +112,13 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
         select,
         input[type="range"] {
             width: 100%;
             background: rgba(15, 23, 42, 0.8);
-            /* Fondo más oscuro para mayor contraste */
             border: 1px solid var(--glass-border);
             border-radius: 8px;
             padding: 10px;
@@ -128,15 +128,7 @@
 
         select option {
             background: #0f172a;
-            /* Fondo sólido oscuro para las opciones */
             color: white;
-        }
-
-        optgroup {
-            background: #1e1b4b;
-            /* Fondo para los grupos de idiomas */
-            color: #818cf8;
-            font-weight: 600;
         }
 
         .speed-val {
@@ -172,14 +164,15 @@
             color: white;
         }
 
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: var(--primary-hover);
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
         }
 
-        .btn-primary:active {
-            transform: translateY(0);
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .btn-secondary {
@@ -187,13 +180,69 @@
             color: white;
         }
 
-        .btn-secondary:hover {
+        .btn-secondary:hover:not(:disabled) {
             background: rgba(255, 255, 255, 0.15);
         }
 
-        .btn-secondary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        /* Sidebar Session List */
+        .sidebar {
+            border-left: 1px solid var(--glass-border);
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar h3 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #818cf8;
+        }
+
+        .session-list {
+            overflow-y: auto;
+            max-height: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .session-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .session-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(5px);
+        }
+
+        .session-item:hover .btn-delete {
+            opacity: 1 !important;
+        }
+
+        .session-item.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .session-item strong {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+            padding-right: 25px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .session-item small {
+            color: #94a3b8;
+            font-size: 0.75rem;
         }
 
         /* Audio Player Styling */
@@ -201,6 +250,7 @@
             margin-top: 32px;
             display: none;
             animation: fadeIn 0.5s ease-out;
+            grid-column: 1 / span 2;
         }
 
         audio {
@@ -212,9 +262,9 @@
 
         .loading-spinner {
             display: none;
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             border-top-color: white;
             animation: spin 1s linear infinite;
@@ -226,13 +276,16 @@
             }
         }
 
-        @media (max-width: 600px) {
-            .controls {
+        @media (max-width: 850px) {
+            .container {
                 grid-template-columns: 1fr;
             }
 
-            .container {
-                padding: 24px;
+            .sidebar {
+                border-left: none;
+                border-top: 1px solid var(--glass-border);
+                padding-left: 0;
+                padding-top: 20px;
             }
         }
     </style>
@@ -240,54 +293,64 @@
 
 <body>
     <div class="container">
-        <h1>Kokoro Pro AI TTS</h1>
-        <p class="subtitle">Voces de calidad IA, 100% Privado y Local</p>
+        <main>
+            <h1>Kokoro Pro AI</h1>
+            <p class="subtitle">Modo Lectura Fluida (Sin Pausas)</p>
 
-        <div class="input-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <label for="text" style="margin-bottom: 0;">Texto a convertir</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
-                    <button id="upload-btn" class="btn-secondary"
-                        style="padding: 6px 12px; font-size: 0.8rem; flex: none;">
-                        📄 Cargar Archivo
-                    </button>
+            <div class="input-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="margin-bottom: 0;">Texto o Archivo</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
+                        <button id="upload-btn" class="btn-secondary"
+                            style="padding: 6px 12px; font-size: 0.75rem; flex: none;">
+                            📄 Subir
+                        </button>
+                    </div>
+                </div>
+                <textarea id="text" placeholder="Escribe aquí o sube un libro..."></textarea>
+            </div>
+
+            <div class="controls">
+                <div>
+                    <label>Voz Neuronal</label>
+                    <select id="voice"></select>
+                </div>
+                <div>
+                    <label>Velocidad</label>
+                    <input type="range" id="speed" min="0.5" max="2.0" step="0.1" value="1.0">
+                    <div class="speed-val">
+                        <span>0.5x</span>
+                        <span id="speed-display">1.0x</span>
+                        <span>2.0x</span>
+                    </div>
                 </div>
             </div>
-            <textarea id="text" placeholder="Escribe aquí o carga un PDF/Word..."></textarea>
-        </div>
 
-        <div class="controls">
-            <div class="control-item">
-                <label for="voice">Voz Neuronal</label>
-                <select id="voice"></select>
+            <div class="actions">
+                <button id="generate-btn" class="btn-primary">
+                    <span class="loading-spinner" id="spinner"></span>
+                    <span id="btn-text">Comenzar Lectura Fluida</span>
+                </button>
             </div>
-            <div class="control-item">
-                <label for="speed">Velocidad</label>
-                <input type="range" id="speed" min="0.5" max="2.0" step="0.1" value="1.0">
-                <div class="speed-val">
-                    <span>0.5x</span>
-                    <span id="speed-display">1.0x</span>
-                    <span>2.0x</span>
-                </div>
-            </div>
-        </div>
+        </main>
 
-        <div class="actions">
-            <button id="generate-btn" class="btn-primary">
-                <span class="loading-spinner" id="spinner"></span>
-                <span id="btn-text">Generar Voz IA</span>
-            </button>
-            <button id="download-btn" class="btn-secondary" disabled>Descargar WAV</button>
-        </div>
+        <aside class="sidebar">
+            <h3>Lecturas Guardadas</h3>
+            <div id="session-list" class="session-list">
+                <p style="font-size: 0.8rem; color: #475569;">Cargando sesiones...</p>
+            </div>
+        </aside>
 
         <div class="audio-container" id="audio-container">
-            <div id="status-bar" style="margin-bottom: 12px; font-size: 0.85rem; color: #818cf8; font-weight: 300;">
+            <div id="status-bar" style="margin-bottom: 4px; font-size: 0.85rem; color: #818cf8; font-weight: 300;">
             </div>
-            <label id="player-label">Cargando...</label>
+            <div id="buffer-status" style="margin-bottom: 12px; font-size: 0.75rem; color: #94a3b8; font-weight: 300;">
+            </div>
+            <label id="player-label" style="font-weight: 600; color: #cbd5e1;"></label>
             <div id="players-wrapper" style="position: relative; height: 40px; margin-top: 8px;">
-                <audio id="audio-player-a" controls style="width: 100%; position: absolute; top:0; left:0;"></audio>
-                <audio id="audio-player-b" controls
+                <audio id="audio-player-a" style="width: 100%; position: absolute; top:0; left:0;"></audio>
+                <audio id="audio-player-b"
                     style="width: 100%; position: absolute; top:0; left:0; display: none;"></audio>
             </div>
         </div>
@@ -296,171 +359,146 @@
     <script>
         const voiceSelect = document.getElementById('voice');
         const generateBtn = document.getElementById('generate-btn');
-        const downloadBtn = document.getElementById('download-btn');
         const textInput = document.getElementById('text');
         const speedInput = document.getElementById('speed');
         const speedDisplay = document.getElementById('speed-display');
-
         const playerA = document.getElementById('audio-player-a');
         const playerB = document.getElementById('audio-player-b');
-
         const audioContainer = document.getElementById('audio-container');
         const spinner = document.getElementById('spinner');
         const btnText = document.getElementById('btn-text');
-
         const statusBar = document.getElementById('status-bar');
+        const bufferStatus = document.getElementById('buffer-status');
         const playerLabel = document.getElementById('player-label');
         const fileInput = document.getElementById('file-input');
         const uploadBtn = document.getElementById('upload-btn');
+        const sessionList = document.getElementById('session-list');
 
-        let voices = [];
-        let currentAudioUrl = null;
+        let currentProjectId = null;
         let totalChunks = 0;
-        let chunks = [];
-        let chunkBlobs = [];
         let currentChunkIndex = -1;
-        let isGenerating = false;
-        let objectUrls = new Set(); // Para gestión de memoria
-
-        // Configuracion para pre-carga
-        const PRELOAD_AHEAD = 4; // Aumentado para crear un buffer mayor
-        let nextChunkToGenerate = 0;
         let activePlayer = 'A';
 
-        // Cargar voces al inicio
+        // --- GESTIÓN DE BUFFER ---
+        let pregenerationIndex = 0;
+        let isPregenerating = false;
+        const BUFFER_TARGET = 5; // Siempre intentar tener 5 chunks listos en disco
+
         async function loadVoices() {
             try {
-                const response = await fetch('/api/voices');
-                voices = await response.json();
-
+                const res = await fetch('/api/voices');
+                const voices = await res.json();
                 const groups = {};
                 voices.forEach(v => {
                     if (!groups[v.group]) groups[v.group] = [];
                     groups[v.group].push(v);
                 });
-
-                for (const groupName in groups) {
+                voiceSelect.innerHTML = '';
+                for (const gName in groups) {
                     const group = document.createElement('optgroup');
-                    group.label = groupName;
-                    groups[groupName].forEach(v => {
+                    group.label = gName;
+                    groups[gName].forEach(v => {
                         const opt = document.createElement('option');
                         opt.value = v.id;
                         opt.textContent = v.label;
                         opt.dataset.lang = v.lang;
-                        if (v.id === 'ef_dora') opt.selected = true;
+                        if (v.id === 'es_esteban') opt.selected = true;
                         group.appendChild(opt);
                     });
                     voiceSelect.appendChild(group);
                 }
-            } catch (error) {
-                console.error('Error loading voices:', error);
-            }
+            } catch (err) { console.error('Error cargando voces', err); }
         }
 
-        speedInput.oninput = () => {
-            speedDisplay.textContent = speedInput.value + 'x';
-        };
-
-        uploadBtn.onclick = () => fileInput.click();
-
-        fileInput.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const formData = new FormData();
-            formData.append('file', file);
-            uploadBtn.textContent = '⌛ Cargando...';
-            uploadBtn.disabled = true;
+        async function loadSessions() {
             try {
-                const response = await fetch('/api/extract', { method: 'POST', body: formData });
-                const data = await response.json();
-                if (data.text) textInput.value = data.text;
-                else alert('Error: ' + (data.error || 'No se pudo extraer texto.'));
-            } catch (err) { alert('Error al subir archivo.'); }
-            finally {
-                uploadBtn.textContent = '📄 Cargar Archivo';
-                uploadBtn.disabled = false;
-            }
-        };
-
-        async function concatenateWavBlobs(blobs) {
-            if (blobs.length === 0) return null;
-            if (blobs.length === 1) return blobs[0];
-            const buffers = await Promise.all(blobs.map(b => b.arrayBuffer()));
-            let totalDataLength = buffers.reduce((acc, buf) => acc + (buf.byteLength - 44), 0);
-            let totalLength = 44 + totalDataLength;
-            const combinedBuffer = new Uint8Array(totalLength);
-            combinedBuffer.set(new Uint8Array(buffers[0]), 0);
-            let offset = buffers[0].byteLength;
-            for (let i = 1; i < buffers.length; i++) {
-                const dataOnly = new Uint8Array(buffers[i].slice(44));
-                combinedBuffer.set(dataOnly, offset);
-                offset += dataOnly.byteLength;
-            }
-            const view = new DataView(combinedBuffer.buffer);
-            view.setUint32(4, totalLength - 8, true);
-            view.setUint32(40, totalDataLength, true);
-            return new Blob([combinedBuffer], { type: 'audio/wav' });
-        }
-
-        async function generateNextChunks(voiceId, speed, lang) {
-            if (isGenerating || nextChunkToGenerate >= totalChunks) return;
-            if (nextChunkToGenerate - currentChunkIndex > PRELOAD_AHEAD) return;
-
-            isGenerating = true;
-            const i = nextChunkToGenerate;
-            statusBar.textContent = `Generando bloque ${i + 1} de ${totalChunks}...`;
-
-            try {
-                const res = await fetch('/api/speak', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: chunks[i], voice: voiceId, speed, lang })
-                });
-
-                if (res.ok) {
-                    const blob = await res.blob();
-                    const url = URL.createObjectURL(blob);
-                    objectUrls.add(url);
-
-                    chunkBlobs[i] = { blob, url };
-                    nextChunkToGenerate++;
-                    isGenerating = false; // Desbloquear antes de la siguiente llamada
-
-                    // Pre-generar siguiente si hay hueco
-                    generateNextChunks(voiceId, speed, lang);
-
-                    if (i === 0 && currentChunkIndex === -1) {
-                        playNextChunk();
-                        spinner.style.display = 'none';
-                        btnText.textContent = 'Escuchando...';
-                    } else if (i === currentChunkIndex + 1) {
-                        preloadIntoInactivePlayer(i);
-                    }
-                } else {
-                    isGenerating = false;
+                const res = await fetch('/api/projects');
+                const projects = await res.json();
+                sessionList.innerHTML = '';
+                if (projects.length === 0) {
+                    sessionList.innerHTML = '<p style="font-size: 0.8rem; color: #475569;">No hay sesiones.</p>';
                 }
-            } catch (err) {
-                console.error("Error generating chunk:", err);
-                isGenerating = false;
+                projects.sort((a, b) => b.id.localeCompare(a.id)).forEach(p => {
+                    const progress = Math.round((p.completed_chunks / p.total_chunks) * 100);
+                    const item = document.createElement('div');
+                    item.className = `session-item ${currentProjectId === p.id ? 'active' : ''}`;
+                    item.onclick = () => resumeProject(p);
+                    item.innerHTML = `
+                        <button class="btn-delete" onclick="deleteSession(event, '${p.id}')" title="Eliminar sesión" 
+                            style="position: absolute; top: 8px; right: 8px; background: none; border: none; color: #ef4444; 
+                            font-size: 1.1rem; font-weight: bold; cursor: pointer; opacity: 0; transition: all 0.2s; line-height: 1;">
+                            ×
+                        </button>
+                        <div style="flex: 1; min-width: 0;">
+                            <strong>${p.name}</strong>
+                            <small>${p.total_chunks} fragmentos - ${progress}%</small>
+                        </div>
+                    `;
+                    sessionList.appendChild(item);
+                });
+            } catch (err) { console.error('Error cargando sesiones', err); }
+        }
+
+        async function deleteSession(event, projectId) {
+            event.stopPropagation();
+            if (!confirm('¿Seguro que quieres eliminar esta lectura?')) return;
+
+            try {
+                const res = await fetch(`/api/projects/${projectId}/delete`, { method: 'DELETE' });
+                if (res.ok) {
+                    if (currentProjectId === projectId) {
+                        currentProjectId = null;
+                        audioContainer.style.display = 'none';
+                        textInput.value = '';
+                    }
+                    loadSessions();
+                } else {
+                    alert('Error al eliminar');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // Sistema de Pre-generación Agresiva
+        async function runPregenerator() {
+            if (isPregenerating || !currentProjectId) return;
+            if (pregenerationIndex >= totalChunks) return;
+
+            // Mantener un colchon de BUFFER_TARGET chunks pre-generados en el servidor
+            if (pregenerationIndex - currentChunkIndex > BUFFER_TARGET) {
+                setTimeout(runPregenerator, 2000);
+                return;
             }
+
+            isPregenerating = true;
+            const idx = pregenerationIndex;
+            bufferStatus.textContent = `⚡ Buffer: Preparando fragmento ${idx + 1}/${totalChunks}...`;
+
+            try {
+                const res = await fetch(`/api/projects/${currentProjectId}/chunk/${idx}/prepare`, { method: 'POST' });
+                if (res.ok) {
+                    pregenerationIndex++;
+                    bufferStatus.textContent = `✓ Buffer listo hasta fragmento ${pregenerationIndex}/${totalChunks}.`;
+                    // Si acabamos de generar el primer chunk o el siguiente al actual, intentar pre-cargar el audio
+                    if (idx === currentChunkIndex + 1) {
+                        preloadNextAudio();
+                    }
+                }
+            } catch (err) { console.error("Error en pregeneración", err); }
+
+            isPregenerating = false;
+            runPregenerator(); // Siguiente
         }
 
-        function createUrl(blob) {
-            const url = URL.createObjectURL(blob);
-            objectUrls.add(url);
-            return url;
-        }
+        function preloadNextAudio() {
+            const nextIdx = currentChunkIndex + 1;
+            if (nextIdx >= totalChunks) return;
 
-        function clearObjectUrls() {
-            objectUrls.forEach(url => URL.revokeObjectURL(url));
-            objectUrls.clear();
-        }
-
-        function preloadIntoInactivePlayer(chunkIdx) {
-            if (chunkIdx >= totalChunks) return;
             const inactivePlayer = activePlayer === 'A' ? playerB : playerA;
-            if (chunkBlobs[chunkIdx]) {
-                inactivePlayer.src = chunkBlobs[chunkIdx].url;
+            // No cargamos si ya tiene la ruta correcta
+            const targetSrc = `${window.location.origin}/api/projects/${currentProjectId}/chunk/${nextIdx}`;
+            if (!inactivePlayer.src.includes(targetSrc)) {
+                console.log(`Pre-cargando audio para chunk ${nextIdx}`);
+                inactivePlayer.src = targetSrc;
                 inactivePlayer.load();
             }
         }
@@ -468,156 +506,166 @@
         async function playNextChunk() {
             const nextIdx = currentChunkIndex + 1;
             if (nextIdx >= totalChunks) {
-                finishGeneration();
+                statusBar.textContent = "✓ Lectura completada.";
                 return;
             }
-
-            if (!chunkBlobs[nextIdx]) {
-                statusBar.textContent = `⌛ Esperando al bloque ${nextIdx + 1} (se está generando)...`;
-                setTimeout(playNextChunk, 1000);
-                return;
-            }
-
-            currentChunkIndex = nextIdx;
 
             const currentPlayer = activePlayer === 'A' ? playerA : playerB;
             const nextPlayer = activePlayer === 'A' ? playerB : playerA;
 
-            // Optimización: No recargar src si ya está cargado (precargado)
-            const chunk = chunkBlobs[currentChunkIndex];
-            if (currentPlayer.src !== chunk.url) {
-                currentPlayer.src = chunk.url;
+            currentChunkIndex = nextIdx;
+
+            // Si el audio aún no está en el player (porque el pregenerador va lento), forzar carga
+            const targetSrc = `${window.location.origin}/api/projects/${currentProjectId}/chunk/${currentChunkIndex}`;
+            if (!currentPlayer.src.includes(targetSrc)) {
+                statusBar.textContent = `⌛ Esperando audio parte ${nextIdx + 1}...`;
+                currentPlayer.src = targetSrc;
                 await currentPlayer.load();
             }
 
             audioContainer.style.display = 'block';
             currentPlayer.style.display = 'block';
+            currentPlayer.controls = true;
             nextPlayer.style.display = 'none';
 
-            playerLabel.textContent = `🔊 Reproduciendo parte ${currentChunkIndex + 1} de ${totalChunks}`;
-            statusBar.textContent = "Iniciando audio...";
+            playerLabel.textContent = `🔊 Leyendo parte ${currentChunkIndex + 1} de ${totalChunks}`;
 
             try {
                 await currentPlayer.play();
-                statusBar.textContent = "✓ Reproduciendo.";
+                statusBar.textContent = "✓ Streaming fluido activo.";
             } catch (err) {
-                console.error("Error al iniciar reproducción:", err);
-                statusBar.innerHTML = `<span style="color: #f87171;">⚠️ Error de reproducción o bloqueo de audio. </span> 
-                    <button id="retry-play-btn" style="padding: 2px 8px; font-size: 0.7rem; display: inline-block; width: auto; margin-left: 10px; cursor: pointer; background: #6366f1; border-radius: 4px; border: none; color: white;">
-                    ▶️ Reintentar</button>`;
-                const retryBtn = document.getElementById('retry-play-btn');
-                if (retryBtn) {
-                    retryBtn.onclick = () => {
-                        currentPlayer.play().then(() => {
-                            statusBar.textContent = "✓ Reproduciendo (manual).";
-                        }).catch(e => console.error("Retry failed:", e));
-                    };
-                }
+                statusBar.textContent = "Interrupción: Haz clic en Play para continuar.";
             }
 
-            // Pre-cargar el SIGUIENTE en el reproductor inactivo
-            preloadIntoInactivePlayer(currentChunkIndex + 1);
+            // Inmediatamente pre-cargar el SIGUIENTE en el reproductor inactivo
+            preloadNextAudio();
 
             currentPlayer.onended = () => {
                 activePlayer = activePlayer === 'A' ? 'B' : 'A';
                 playNextChunk();
-
-                const voiceId = voiceSelect.value;
-                const speed = speedInput.value;
-                const lang = voiceSelect.options[voiceSelect.selectedIndex].dataset.lang;
-                generateNextChunks(voiceId, speed, lang);
+                loadSessions();
             };
         }
 
-        async function finishGeneration() {
-            statusBar.textContent = "Finalizando audio completo...";
-            const filteredBlobs = chunkBlobs.filter(b => b).map(b => b.blob);
-            const finalBlob = await concatenateWavBlobs(filteredBlobs);
-            clearObjectUrls();
-            currentAudioUrl = URL.createObjectURL(finalBlob);
-            objectUrls.add(currentAudioUrl);
+        function resumeProject(project) {
+            currentProjectId = project.id;
+            totalChunks = project.total_chunks;
+            currentChunkIndex = project.completed_chunks - 1;
+            if (currentChunkIndex < -1) currentChunkIndex = -1;
+            pregenerationIndex = project.completed_chunks;
 
-            downloadBtn.disabled = false;
-            statusBar.textContent = "✓ Audio completo generado y listo para descargar.";
+            textInput.value = "Sesión recuperada: " + project.name;
+            audioContainer.style.display = 'block';
 
-            playerA.onended = null;
-            playerB.onended = null;
-            playerA.src = currentAudioUrl;
-            playerA.style.display = 'block';
-            playerB.style.display = 'none';
-            playerLabel.textContent = "Resultado Final (Audio Completo):";
+            // Cambiar visual del botón para indicar que ya está cargado
+            updateControlBtn(false);
 
-            generateBtn.disabled = false;
-            spinner.style.display = 'none';
-            btnText.textContent = 'Generar Voz IA';
+            loadSessions();
+            runPregenerator();
+            playNextChunk();
         }
 
-        generateBtn.onclick = async () => {
-            const text = textInput.value;
-            const voiceId = voiceSelect.value;
-            const speed = speedInput.value;
-            const lang = voiceSelect.options[voiceSelect.selectedIndex].dataset.lang;
-            if (!text.trim()) { alert('Escribe algo de texto.'); return; }
+        function updateControlBtn(isPlaying) {
+            if (isPlaying) {
+                btnText.textContent = "Detener Lectura";
+                generateBtn.classList.remove('btn-primary');
+                generateBtn.classList.add('btn-secondary');
+            } else {
+                btnText.textContent = "Continuar Lectura";
+                generateBtn.classList.remove('btn-secondary');
+                generateBtn.classList.add('btn-primary');
+            }
+        }
 
-            currentChunkIndex = -1;
-            nextChunkToGenerate = 0;
-            chunkBlobs = [];
-            isGenerating = false;
-            activePlayer = 'A';
-            clearObjectUrls();
+        // Sync button states with players
+        [playerA, playerB].forEach(p => {
+            p.addEventListener('play', () => updateControlBtn(true));
+            p.addEventListener('pause', () => updateControlBtn(false));
+            p.addEventListener('ended', () => {
+                if (currentChunkIndex >= totalChunks - 1) updateControlBtn(false);
+            });
+        });
 
-            playerA.pause();
-            playerB.pause();
-            playerA.src = "";
-            playerB.src = "";
-            playerA.onended = null;
-            playerB.onended = null;
-
-            downloadBtn.disabled = true;
-            statusBar.textContent = "Analizando texto...";
-            playerLabel.textContent = "Procesando...";
-
-            generateBtn.disabled = true;
-            spinner.style.display = 'block';
-            btnText.textContent = 'Procesando...';
-
-            try {
-                const splitRes = await fetch('/api/split', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
-                });
-                const data = await splitRes.json();
-                chunks = data.chunks;
-                totalChunks = chunks.length;
-
-                if (totalChunks === 0) {
-                    alert("No se pudo procesar el texto.");
-                    generateBtn.disabled = false;
-                    spinner.style.display = 'none';
-                    return;
-                }
-
-                generateNextChunks(voiceId, speed, lang);
-
-            } catch (err) {
-                alert('Error en la comunicación con el servidor.');
-                generateBtn.disabled = false;
-                spinner.style.display = 'none';
-                btnText.textContent = 'Generar Voz IA';
+        textInput.oninput = () => {
+            // Si el usuario cambia el texto, habilitar de nuevo la creación de proyecto
+            if (!textInput.value.startsWith("Sesión recuperada:")) {
+                btnText.textContent = "Comenzar Lectura Fluida";
+                generateBtn.classList.remove('btn-secondary');
+                generateBtn.classList.add('btn-primary');
             }
         };
 
-        downloadBtn.onclick = () => {
-            if (currentAudioUrl) {
-                const a = document.createElement('a');
-                a.href = currentAudioUrl;
-                a.download = 'kokoro_completo.wav';
-                a.click();
+        speedInput.oninput = () => speedDisplay.textContent = speedInput.value + 'x';
+        uploadBtn.onclick = () => fileInput.click();
+
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            uploadBtn.textContent = '...';
+            try {
+                const res = await fetch('/api/extract', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.text) textInput.value = data.text;
+            } catch (err) { alert('Error subiendo archivo'); }
+            finally { uploadBtn.textContent = '📄 Subir'; }
+        };
+
+        generateBtn.onclick = async () => {
+            const text = textInput.value;
+            if (!text.trim()) return alert('Escribe algo');
+
+            // Toggle Play/Pause si es una sesión activa
+            if (currentProjectId && text.startsWith("Sesión recuperada:")) {
+                const currentPlayer = activePlayer === 'A' ? playerA : playerB;
+                if (currentPlayer.paused) {
+                    currentPlayer.play();
+                } else {
+                    currentPlayer.pause();
+                }
+                return;
+            }
+
+            generateBtn.disabled = true;
+            spinner.style.display = 'block';
+            btnText.textContent = 'Inicializando...';
+
+            const payload = {
+                name: text.substring(0, 30),
+                text: text,
+                voice: voiceSelect.value,
+                speed: speedInput.value,
+                lang: voiceSelect.options[voiceSelect.selectedIndex].dataset.lang
+            };
+
+            try {
+                const res = await fetch('/api/projects/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.project_id) {
+                    currentProjectId = data.project_id;
+                    totalChunks = data.chunks.length;
+                    currentChunkIndex = -1;
+                    pregenerationIndex = 0;
+                    audioContainer.style.display = 'block';
+                    loadSessions();
+                    runPregenerator(); // Iniciar trabajador de fondo
+                    playNextChunk();     // Iniciar reproducción
+                }
+            } catch (err) { alert('Error al iniciar'); }
+            finally {
+                generateBtn.disabled = false;
+                spinner.style.display = 'none';
+                btnText.textContent = 'Comenzar Lectura Fluida';
             }
         };
 
         loadVoices();
+        loadSessions();
     </script>
 </body>
 

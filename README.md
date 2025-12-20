@@ -1,4 +1,4 @@
-# Kokoro Pro AI TTS 🚀
+# Kokoro Pro AI TTS 🚀 (Alpha v0.1.0)
 
 ¡Un lector de documentos inteligente, persistente, local y gratuito!
 
@@ -7,18 +7,20 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 ## ✨ Características Principales
 
 - **Persistencia y Sesiones:** Guarda tus lecturas automáticamente. Cierra la aplicación y vuelve días después; podrás reanudar tu libro exactamente donde lo dejaste.
-- **Streaming Fluido (Gapless):** Sistema de doble reproductor optimizado que elimina las pausas entre fragmentos de texto para una lectura continua.
-- **Fragmentación Asimétrica:** Genera un primer bloque largo para reproducción inmediata y pre-procesa los siguientes en segundo plano (Buffer dinámico).
-- **Gestión de Lecturas:** Barra lateral para organizar tus sesiones, ver el progreso de cada lectura y eliminar las que ya no necesites.
-- **Calidad Profesional:** Voces neuronales naturales (español e inglés) comparables a servicios premium.
-- **100% Privado y Local:** Tus datos y documentos nunca salen de tu ordenador. Funciona totalmente offline.
-- **Sin Costes ni Límites:** Sin suscripciones, sin claves de API, sin límites de caracteres.
+- **Streaming Fluido (Alpha-Ready):** Sistema de doble reproductor optimizado que elimina las pausas entre fragmentos de texto para una lectura continua.
+- **Buffer de Seguridad Inteligente:** Ahora con retroalimentación en tiempo real. Configurado para arrancar rápido y mantener 0 cortes.
+- **Gestión de Lecturas Completa:**
+  - **Renombrar Sesiones:** Personaliza el título de tus lecturas (ideal para grandes bibliotecas).
+  - **Descarga Inteligente:** Descarga el audio total en WAV con el nombre personalizado que elijas.
+  - **Borrado Seguro:** Elimina proyectos y sus archivos de audio con un clic.
+- **Voces Neuronales Premium:** Incluye voces como "Em Alex" por defecto para una experiencia superior en español.
+- **100% Privado y Local:** Funciona totalmente offline, sin costes ni límites.
 
 ## 🛠️ Requisitos
 
-1. **Python 3.10** o superior (Compatible con 3.13).
+1. **Python 3.10+** (Compatible con 3.13).
 2. **eSpeak NG:** Necesario para la conversión de fonemas.
-   - [Descargar eSpeak NG para Windows](https://github.com/espeak-ng/espeak-ng/releases) (Instalador .msi).
+   - [Descargar eSpeak NG para Windows](https://github.com/espeak-ng/espeak-ng/releases).
 
 ## 🚀 Instalación y Uso
 
@@ -33,25 +35,27 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
    pip install -r requirements.txt
    ```
 
-3. **Descargar los modelos:**
-   Coloca estos archivos en la raíz del proyecto (descárgalos desde [kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/v1.0)):
-   - `kokoro-v1.0.onnx`
-   - `voices-v1.0.bin`
+3. **Configuración de Modelos:**
+   Asegúrate de tener `kokoro-v1.0.onnx` y `voices-v1.0.bin` en la raíz.
 
 4. **Ejecutar:**
-   Haz doble clic en `lanzar_app.bat` o ejecuta:
-   ```bash
-   python app.py
-   ```
-   Abre `http://127.0.0.1:5000` en tu navegador.
+   Lanza `lanzar_app.bat` o `python app.py`. Abre `http://127.0.0.1:5000`.
 
 ## 📂 Estructura del Proyecto
 
-- `app.py`: Servidor Flask mejorado con endpoints para gestión de sesiones y streaming persistente.
-- `manager.py`: Motor compartido para la gestión de proyectos, caché de audio y persistencia de estado.
-- `processor.py`: Procesador de texto para extracción inteligente y fragmentación optimizada.
-- `templates/index.html`: Interfaz moderna con barra lateral de sesiones y controles de reproducción dinámicos.
-- `projects/`: Carpeta (auto-generada) donde se guardan tus sesiones y fragmentos de audio.
+- `app.py`: Servidor Flask (API REST) para gestión de sesiones y streaming.
+- `manager.py`: Motor de procesamiento por lotes y gestión de estado.
+- `processor.py`: Extracción de texto y segmentación inteligente.
+- `templates/index.html`: UI moderna con feedback dinámico del buffer.
+
+## 📈 Historial de Versiones (Alpha)
+
+- **v0.1.0 (Alpha):** 
+  - Añadida funcionalidad de renombrar sesiones.
+  - Sincronización de nombre de archivo en descargas WAV.
+  - Mejora drástica en el feedback del buffer (mensajes en tiempo real).
+  - Corrección de bugs de autoplay y rutas de audio.
+  - Voz "Em Alex" configurada por defecto.
 
 ---
-Creado con ❤️ para amantes de la lectura y la IA abierta.
+Creado con ❤️ por **0utKast** para la comunidad de audiolibros offline.

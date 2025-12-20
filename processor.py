@@ -21,7 +21,7 @@ class TextProcessor:
         return text.strip()
 
     @staticmethod
-    def split_into_chunks(text, target_len=1000, first_chunk_len=None):
+    def split_into_chunks(text, target_len=2500, first_chunk_len=None):
         # Limpieza básica
         if first_chunk_len is None:
             first_chunk_len = target_len

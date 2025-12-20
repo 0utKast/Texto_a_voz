@@ -209,35 +209,93 @@
         .session-item {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--glass-border);
-            padding: 12px;
+            padding: 14px;
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s;
             position: relative;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: space-between;
         }
 
-        .session-item:hover {
-            background: rgba(255, 255, 255, 0.08);
-            transform: translateX(5px);
-        }
-
-        .session-item:hover .btn-delete {
-            opacity: 1 !important;
-        }
-
-        .session-item.active {
-            border-color: var(--primary);
-            background: rgba(99, 102, 241, 0.1);
+        .session-info {
+            flex: 1;
+            min-width: 0;
         }
 
         .session-item strong {
             display: block;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             margin-bottom: 4px;
-            padding-right: 25px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            color: #f1f5f9;
+        }
+
+        .session-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-delete-session {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-delete-session:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .btn-rename-session {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-rename-session:hover {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.1);
+        }
+
+        .btn-download-session {
+            color: #22c55e;
+            font-size: 1.1rem;
+            text-decoration: none;
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-download-session:hover {
+            background: rgba(34, 197, 94, 0.1);
+            transform: scale(1.1);
         }
 
         .session-item small {
@@ -251,6 +309,36 @@
             display: none;
             animation: fadeIn 0.5s ease-out;
             grid-column: 1 / span 2;
+            padding-bottom: 20px;
+        }
+
+        .download-zone {
+            display: none;
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px dashed var(--primary);
+            border-radius: 12px;
+            text-align: center;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .btn-download {
+            background: #22c55e;
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-download:hover {
+            background: #16a34a;
+            transform: scale(1.05);
         }
 
         audio {
@@ -353,6 +441,13 @@
                 <audio id="audio-player-b"
                     style="width: 100%; position: absolute; top:0; left:0; display: none;"></audio>
             </div>
+            <div id="download-zone" class="download-zone">
+                <p style="margin-bottom: 10px; font-size: 0.9rem; color: #cbd5e1;">¡Conversión completa! Ya puedes
+                    descargar el audio completo.</p>
+                <a id="download-link" href="#" class="btn-download">
+                    📥 Descargar WAV Completo
+                </a>
+            </div>
         </div>
     </div>
 
@@ -373,16 +468,19 @@
         const fileInput = document.getElementById('file-input');
         const uploadBtn = document.getElementById('upload-btn');
         const sessionList = document.getElementById('session-list');
+        const downloadZone = document.getElementById('download-zone');
+        const downloadLink = document.getElementById('download-link');
 
         let currentProjectId = null;
         let totalChunks = 0;
         let currentChunkIndex = -1;
         let activePlayer = 'A';
+        let isSessionResumed = false; // Flag para rastrear si estamos en una sesión guardada
 
         // --- GESTIÓN DE BUFFER ---
         let pregenerationIndex = 0;
         let isPregenerating = false;
-        const BUFFER_TARGET = 5; // Siempre intentar tener 5 chunks listos en disco
+        const BUFFER_TARGET = 15; // Intentar tener 15 chunks listos en disco (agresivo)
 
         async function loadVoices() {
             try {
@@ -402,7 +500,7 @@
                         opt.value = v.id;
                         opt.textContent = v.label;
                         opt.dataset.lang = v.lang;
-                        if (v.id === 'es_esteban') opt.selected = true;
+                        if (v.id === 'em_alex') opt.selected = true;
                         group.appendChild(opt);
                     });
                     voiceSelect.appendChild(group);
@@ -423,15 +521,34 @@
                     const item = document.createElement('div');
                     item.className = `session-item ${currentProjectId === p.id ? 'active' : ''}`;
                     item.onclick = () => resumeProject(p);
-                    item.innerHTML = `
-                        <button class="btn-delete" onclick="deleteSession(event, '${p.id}')" title="Eliminar sesión" 
-                            style="position: absolute; top: 8px; right: 8px; background: none; border: none; color: #ef4444; 
-                            font-size: 1.1rem; font-weight: bold; cursor: pointer; opacity: 0; transition: all 0.2s; line-height: 1;">
+
+                    let actionsHtml = '';
+                    actionsHtml += `
+                        <button class="btn-rename-session" onclick="renameSession(event, '${p.id}', '${p.name.replace(/'/g, "\\'")}')" title="Renombrar">
+                            ✏️
+                        </button>
+                    `;
+                    if (p.is_finished) {
+                        actionsHtml += `
+                            <a href="/api/projects/${p.id}/download" class="btn-download-session" 
+                                onclick="event.stopPropagation()" title="Descargar WAV completo">
+                                📥
+                            </a>
+                        `;
+                    }
+                    actionsHtml += `
+                        <button class="btn-delete-session" onclick="deleteSession(event, '${p.id}')" title="Eliminar lectura">
                             ×
                         </button>
-                        <div style="flex: 1; min-width: 0;">
+                    `;
+
+                    item.innerHTML = `
+                        <div class="session-info">
                             <strong>${p.name}</strong>
                             <small>${p.total_chunks} fragmentos - ${progress}%</small>
+                        </div>
+                        <div class="session-actions">
+                            ${actionsHtml}
                         </div>
                     `;
                     sessionList.appendChild(item);
@@ -458,35 +575,89 @@
             } catch (err) { console.error(err); }
         }
 
+        async function renameSession(event, projectId, oldName) {
+            event.stopPropagation();
+            const newName = prompt('Nuevo nombre para esta lectura:', oldName);
+            if (!newName || newName === oldName) return;
+
+            try {
+                const res = await fetch(`/api/projects/${projectId}/rename`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+                if (res.ok) {
+                    loadSessions();
+                } else {
+                    alert('Error al renombrar');
+                }
+            } catch (err) { console.error(err); }
+        }
+
         // Sistema de Pre-generación Agresiva
         async function runPregenerator() {
             if (isPregenerating || !currentProjectId) return;
-            if (pregenerationIndex >= totalChunks) return;
-
-            // Mantener un colchon de BUFFER_TARGET chunks pre-generados en el servidor
-            if (pregenerationIndex - currentChunkIndex > BUFFER_TARGET) {
-                setTimeout(runPregenerator, 2000);
-                return;
-            }
 
             isPregenerating = true;
-            const idx = pregenerationIndex;
-            bufferStatus.textContent = `⚡ Buffer: Preparando fragmento ${idx + 1}/${totalChunks}...`;
 
             try {
+                const targetId = currentProjectId;
+                // Fetch project details to get current chunk statuses
+                const resP = await fetch(`/api/projects/${targetId}`);
+                const p = await resP.json();
+
+                // Seguridad: si el usuario cambió de proyecto durante el fetch, abortar
+                if (targetId !== currentProjectId) {
+                    isPregenerating = false;
+                    return;
+                }
+
+                if (!p || !p.chunks) throw new Error('Project data not found');
+
+                // Sincronizar pregenerationIndex con la realidad si es necesario
+                // (por si el servidor terminó chunks mientras estábamos en pausa)
+                let actualCompleted = p.completed_chunks;
+                if (pregenerationIndex < actualCompleted) {
+                    pregenerationIndex = actualCompleted;
+                }
+
+                // Saltear los ya completados
+                while (pregenerationIndex < totalChunks && p.chunks[pregenerationIndex].status === 'completed') {
+                    pregenerationIndex++;
+                }
+
+                if (pregenerationIndex >= totalChunks) {
+                    bufferStatus.textContent = `✓ Lectura totalmente preparada (${totalChunks} partes).`;
+                    isPregenerating = false;
+                    return;
+                }
+
+                // Mantener un colchon de BUFFER_TARGET chunks
+                if (p.chunks[pregenerationIndex].status !== 'error' && pregenerationIndex - currentChunkIndex > BUFFER_TARGET) {
+                    bufferStatus.textContent = `✓ Buffer optimizado (${pregenerationIndex - currentChunkIndex} partes listas).`;
+                    isPregenerating = false;
+                    setTimeout(runPregenerator, 2500);
+                    return;
+                }
+
+                const idx = pregenerationIndex;
+                const statusText = p.chunks[idx].status === 'error' ? 'Reintentando' : 'Preparando';
+                bufferStatus.textContent = `⚡ Buffer: ${statusText} parte ${idx + 1}/${totalChunks}...`;
+
                 const res = await fetch(`/api/projects/${currentProjectId}/chunk/${idx}/prepare`, { method: 'POST' });
                 if (res.ok) {
-                    pregenerationIndex++;
-                    bufferStatus.textContent = `✓ Buffer listo hasta fragmento ${pregenerationIndex}/${totalChunks}.`;
-                    // Si acabamos de generar el primer chunk o el siguiente al actual, intentar pre-cargar el audio
-                    if (idx === currentChunkIndex + 1) {
-                        preloadNextAudio();
+                    if (targetId === currentProjectId) {
+                        pregenerationIndex++;
+                        if (idx === currentChunkIndex + 1) preloadNextAudio();
                     }
                 }
-            } catch (err) { console.error("Error en pregeneración", err); }
+            } catch (err) {
+                console.error("Error en pregeneración:", err);
+                bufferStatus.textContent = "⚠️ Error de conexión en el buffer. Reintentando...";
+            }
 
             isPregenerating = false;
-            runPregenerator(); // Siguiente
+            if (currentProjectId) setTimeout(runPregenerator, 1500);
         }
 
         function preloadNextAudio() {
@@ -507,6 +678,7 @@
             const nextIdx = currentChunkIndex + 1;
             if (nextIdx >= totalChunks) {
                 statusBar.textContent = "✓ Lectura completada.";
+                showDownloadButton();
                 return;
             }
 
@@ -532,9 +704,10 @@
 
             try {
                 await currentPlayer.play();
-                statusBar.textContent = "✓ Streaming fluido activo.";
+                statusBar.textContent = "✓ Reproducción iniciada.";
             } catch (err) {
-                statusBar.textContent = "Interrupción: Haz clic en Play para continuar.";
+                statusBar.textContent = "Buffer listo. Por favor, haz clic en el botón Play para empezar.";
+                console.warn("Autoplay bloqueado. Esperando clic del usuario.");
             }
 
             // Inmediatamente pre-cargar el SIGUIENTE en el reproductor inactivo
@@ -547,25 +720,77 @@
             };
         }
 
-        function resumeProject(project) {
+        async function initializeProject(project, isResuming) {
             currentProjectId = project.id;
             totalChunks = project.total_chunks;
             currentChunkIndex = project.completed_chunks - 1;
             if (currentChunkIndex < -1) currentChunkIndex = -1;
             pregenerationIndex = project.completed_chunks;
+            isSessionResumed = true;
 
-            textInput.value = "Sesión recuperada: " + project.name;
+            if (isResuming) {
+                textInput.value = "Sesión recuperada: " + project.name;
+            } else {
+                textInput.value = "Sesión recuperada: " + project.name; // Mantener sync para el oninput
+            }
+
             audioContainer.style.display = 'block';
-
-            // Cambiar visual del botón para indicar que ya está cargado
             updateControlBtn(false);
-
             loadSessions();
             runPregenerator();
-            playNextChunk();
+
+            if (project.is_finished) {
+                showDownloadButton();
+                playNextChunk();
+            } else {
+                downloadZone.style.display = 'none';
+
+                // Indicar en el botón que estamos cargando
+                btnText.textContent = "Cargando Lectura...";
+                generateBtn.classList.remove('btn-primary');
+                generateBtn.classList.add('btn-secondary');
+
+                // Esperar a que el buffer tenga al menos el actual + 3 siguientes
+                statusBar.textContent = "⏳ Preparando primera parte y buffer de seguridad (esto puede tomar 1 o 2 minutos)...";
+
+                const waitBuffer = async () => {
+                    if (currentProjectId !== project.id) return;
+
+                    // Si ya hay suficiente buffer (al menos el siguiente o 3 si hay muchos)
+                    const targetBuffer = Math.min(totalChunks, currentChunkIndex + 3);
+                    const isReady = pregenerationIndex >= targetBuffer;
+
+                    if (isReady) {
+                        playNextChunk();
+                    } else {
+                        // Reportar progreso real del buffer en la barra superior también para que el usuario no se asuste
+                        if (pregenerationIndex === 0) {
+                            statusBar.textContent = "⏳ Generando fragmento inicial (calidad ultra-pro)...";
+                        } else {
+                            statusBar.textContent = `⏳ Llenando buffer: ${pregenerationIndex}/${targetBuffer} listos...`;
+                        }
+                        setTimeout(waitBuffer, 1000);
+                    }
+                };
+                waitBuffer();
+            }
+        }
+
+        async function resumeProject(project) {
+            // DESBLOQUEO: Primar los reproductores con el gesto del click
+            playerA.play().then(() => playerA.pause()).catch(() => { });
+            playerB.play().then(() => playerB.pause()).catch(() => { });
+
+            initializeProject(project, true);
+        }
+
+        function showDownloadButton() {
+            downloadLink.href = `/api/projects/${currentProjectId}/download`;
+            downloadZone.style.display = 'block';
         }
 
         function updateControlBtn(isPlaying) {
+            generateBtn.disabled = false;
             if (isPlaying) {
                 btnText.textContent = "Detener Lectura";
                 generateBtn.classList.remove('btn-primary');
@@ -588,7 +813,9 @@
 
         textInput.oninput = () => {
             // Si el usuario cambia el texto, habilitar de nuevo la creación de proyecto
-            if (!textInput.value.startsWith("Sesión recuperada:")) {
+            if (isSessionResumed && !textInput.value.startsWith("Sesión recuperada:")) {
+                isSessionResumed = false;
+                currentProjectId = null;
                 btnText.textContent = "Comenzar Lectura Fluida";
                 generateBtn.classList.remove('btn-secondary');
                 generateBtn.classList.add('btn-primary');
@@ -613,19 +840,29 @@
         };
 
         generateBtn.onclick = async () => {
+            // DESBLOQUEO INMEDIATO: Capturar el gesto del usuario al instante
+            playerA.play().then(() => playerA.pause()).catch(() => { });
+            playerB.play().then(() => playerB.pause()).catch(() => { });
+
             const text = textInput.value;
             if (!text.trim()) return alert('Escribe algo');
 
             // Toggle Play/Pause si es una sesión activa
-            if (currentProjectId && text.startsWith("Sesión recuperada:")) {
+            if (currentProjectId && isSessionResumed) {
                 const currentPlayer = activePlayer === 'A' ? playerA : playerB;
                 if (currentPlayer.paused) {
-                    currentPlayer.play();
+                    currentPlayer.play().catch(() => {
+                        statusBar.textContent = "Haz clic en el Play del reproductor para iniciar.";
+                    });
                 } else {
                     currentPlayer.pause();
                 }
                 return;
             }
+
+            // DESBLOQUEO: Primar reproductores ante el gesto de click
+            playerA.play().then(() => playerA.pause()).catch(() => { });
+            playerB.play().then(() => playerB.pause()).catch(() => { });
 
             generateBtn.disabled = true;
             spinner.style.display = 'block';
@@ -647,14 +884,10 @@
                 });
                 const data = await res.json();
                 if (data.project_id) {
-                    currentProjectId = data.project_id;
-                    totalChunks = data.chunks.length;
-                    currentChunkIndex = -1;
-                    pregenerationIndex = 0;
-                    audioContainer.style.display = 'block';
-                    loadSessions();
-                    runPregenerator(); // Iniciar trabajador de fondo
-                    playNextChunk();     // Iniciar reproducción
+                    // Obtener los datos completos del proyecto para inicializar
+                    const resP = await fetch(`/api/projects/${data.project_id}`);
+                    const project = await resP.json();
+                    initializeProject(project, false);
                 }
             } catch (err) { alert('Error al iniciar'); }
             finally {

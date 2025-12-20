@@ -1,4 +1,5 @@
 import os
+import json
 import io
 import time
 import re
@@ -103,6 +104,13 @@ def get_voices():
 def get_projects():
     return jsonify(manager.get_projects())
 
+@app.route("/api/projects/<project_id>", methods=["GET"])
+def get_project_status(project_id):
+    project = manager.get_project(project_id)
+    if project:
+        return jsonify(project)
+    return jsonify({"error": "Project not found"}), 404
+
 @app.route("/api/projects/create", methods=["POST"])
 def create_project():
     data = request.json
@@ -115,8 +123,8 @@ def create_project():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    # Usar el nuevo split asimétrico: 3000 caracteres para el primero, el resto 1000
-    chunks = processor.split_into_chunks(text, target_len=1000, first_chunk_len=3000)
+    # Usar el nuevo split asimétrico: 4000 caracteres para el primero, el resto 2500
+    chunks = processor.split_into_chunks(text, target_len=2500, first_chunk_len=4000)
     project_id = manager.create_project(name, chunks, voice, speed, lang)
     return jsonify({"project_id": project_id, "chunks": chunks})
 
@@ -133,6 +141,20 @@ def delete_project(project_id):
     try:
         if manager.delete_project(project_id):
             return jsonify({"status": "deleted", "project_id": project_id})
+        else:
+            return jsonify({"error": "Project not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+@app.route("/api/projects/<project_id>/rename", methods=["POST"])
+def rename_project(project_id):
+    data = request.json
+    new_name = data.get("name")
+    if not new_name:
+        return jsonify({"error": "No name provided"}), 400
+    
+    try:
+        if manager.rename_project(project_id, new_name):
+            return jsonify({"status": "renamed", "project_id": project_id, "new_name": new_name})
         else:
             return jsonify({"error": "Project not found"}), 404
     except Exception as e:
@@ -161,6 +183,44 @@ def get_chunk_audio(project_id, chunk_id):
         return send_file(chunk_path, mimetype="audio/wav")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/projects/<project_id>/download")
+def download_project_audio(project_id):
+    project_path = os.path.join(app.config['PROJECTS_FOLDER'], project_id)
+    final_path = os.path.join(project_path, "final_output.wav")
+    status_path = os.path.join(project_path, "status.json")
+    
+    # Intentar obtener el nombre personalizado del status.json
+    custom_name = project_id
+    if os.path.exists(status_path):
+        try:
+            with open(status_path, "r", encoding="utf-8") as f:
+                status = json.load(f)
+                custom_name = status.get("name", project_id)
+                # Sanitizar para nombre de archivo
+                custom_name = re.sub(r'[\\/:*?"<>|]', '', custom_name).strip()
+                if not custom_name: custom_name = project_id
+        except:
+            pass
+
+    if os.path.exists(final_path):
+        return send_file(final_path, as_attachment=True, download_name=f"{custom_name}.wav", mimetype="audio/wav")
+    
+    # Si no existe, ver si el proyecto está terminado para ensamblarlo
+    if os.path.exists(status_path):
+        with open(status_path, "r", encoding="utf-8") as f:
+            status = json.load(f)
+        
+        # Robustez: Aceptar si el flag está activo O si los contadores coinciden
+        total = status.get("total_chunks", 999999)
+        completed = status.get("completed_chunks", 0)
+        
+        if status.get("is_finished") or (completed >= total):
+            manager.assemble_audio(project_id)
+            if os.path.exists(final_path):
+                return send_file(final_path, as_attachment=True, download_name=f"{custom_name}.wav", mimetype="audio/wav")
+
+    return jsonify({"error": "Audio not ready for download. Please wait until conversion finishes."}), 404
 
 @app.route("/api/speak", methods=["POST"])
 def speak():

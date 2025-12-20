@@ -626,17 +626,10 @@
                     pregenerationIndex++;
                 }
 
-                if (pregenerationIndex >= totalChunks) {
+                if (pregenerationIndex >= totalChunks || p.is_finished) {
                     bufferStatus.textContent = `✓ Lectura totalmente preparada (${totalChunks} partes).`;
+                    showDownloadButton();
                     isPregenerating = false;
-                    return;
-                }
-
-                // Mantener un colchon de BUFFER_TARGET chunks
-                if (p.chunks[pregenerationIndex].status !== 'error' && pregenerationIndex - currentChunkIndex > BUFFER_TARGET) {
-                    bufferStatus.textContent = `✓ Buffer optimizado (${pregenerationIndex - currentChunkIndex} partes listas).`;
-                    isPregenerating = false;
-                    setTimeout(runPregenerator, 2500);
                     return;
                 }
 

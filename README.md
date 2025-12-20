@@ -1,4 +1,4 @@
-# Kokoro Pro AI TTS 🚀 (Alpha v0.1.0)
+# Kokoro Pro AI TTS 🚀 (Alpha v0.1.1)
 
 ¡Un lector de documentos inteligente, persistente, local y gratuito!
 
@@ -8,6 +8,7 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 
 - **Persistencia y Sesiones:** Guarda tus lecturas automáticamente. Cierra la aplicación y vuelve días después; podrás reanudar tu libro exactamente donde lo dejaste.
 - **Streaming Fluido (Alpha-Ready):** Sistema de doble reproductor optimizado que elimina las pausas entre fragmentos de texto para una lectura continua.
+- **Conversión de Fondo Continua:** El sistema ahora procesa el documento completo sin detenerse, independientemente de tu posición de lectura.
 - **Buffer de Seguridad Inteligente:** Ahora con retroalimentación en tiempo real. Configurado para arrancar rápido y mantener 0 cortes.
 - **Gestión de Lecturas Completa:**
   - **Renombrar Sesiones:** Personaliza el título de tus lecturas (ideal para grandes bibliotecas).
@@ -49,6 +50,10 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 - `templates/index.html`: UI moderna con feedback dinámico del buffer.
 
 ## 📈 Historial de Versiones (Alpha)
+
+- **v0.1.1 (Alpha):**
+  - Eliminado el límite de buffer: la conversión ahora es continua hasta el final del documento.
+  - Disponibilidad inmediata de descarga: el botón WAV aparece en cuanto termina la conversión, aunque la lectura no haya acabado.
 
 - **v0.1.0 (Alpha):** 
   - Añadida funcionalidad de renombrar sesiones.

@@ -95,7 +95,7 @@ class BatchManager:
             if not chunk:
                 raise ValueError(f"Chunk {chunk_id} not found in project {project_id}")
 
-            if chunk["status"] == "completed":
+            if chunk["status"] == "completed" or status.get("is_optimized"):
                 return chunk_id
 
             try:
@@ -262,27 +262,67 @@ class BatchManager:
         project_path = os.path.join(self.projects_dir, project_id)
         audio_chunks_dir = os.path.join(project_path, "audio_chunks")
         output_path = os.path.join(project_path, "final_output.wav")
+        status_path = os.path.join(project_path, "status.json")
         
         # Cargar el archivo de estado para saber el orden
-        status_path = os.path.join(project_path, "status.json")
+        if not os.path.exists(status_path):
+            print(f"Error: No se encontró status.json para {project_id}")
+            return
+
         with open(status_path, "r", encoding="utf-8") as f:
             status = json.load(f)
 
-        all_data = []
-        sample_rate = None
+        print(f"Ensamblando audio para {project_id} ({status['total_chunks']} chunks)...")
         
-        for chunk in status["chunks"]:
-            chunk_path = os.path.join(audio_chunks_dir, f"chunk_{chunk['id']}.wav")
-            if os.path.exists(chunk_path):
-                data, sr = sf.read(chunk_path)
-                if sample_rate is None:
-                    sample_rate = sr
-                all_data.append(data)
-        
-        if all_data:
-            combined = np.concatenate(all_data)
-            sf.write(output_path, combined, sample_rate)
-            print(f"Audio final ensamblado en: {output_path}")
+        try:
+            # Obtener propiedades del primer chunk para configurar el archivo de salida
+            first_chunk_path = os.path.join(audio_chunks_dir, "chunk_0.wav")
+            if not os.path.exists(first_chunk_path):
+                # Buscar el primer chunk disponible si el 0 no está
+                available_chunks = sorted([f for f in os.listdir(audio_chunks_dir) if f.endswith(".wav")])
+                if not available_chunks:
+                    print("No hay chunks de audio para ensamblar.")
+                    return
+                first_chunk_path = os.path.join(audio_chunks_dir, available_chunks[0])
+
+            # Leer info del primer chunk
+            info = sf.info(first_chunk_path)
+            samplerate = info.samplerate
+            channels = info.channels
+            subtype = info.subtype
+
+            # Abrir el archivo de salida para escritura incremental
+            with sf.SoundFile(output_path, mode='w', samplerate=samplerate, channels=channels, subtype=subtype) as outfile:
+                for chunk in status["chunks"]:
+                    chunk_id = chunk["id"]
+                    chunk_path = os.path.join(audio_chunks_dir, f"chunk_{chunk_id}.wav")
+                    
+                    if os.path.exists(chunk_path):
+                        data, sr = sf.read(chunk_path)
+                        outfile.write(data)
+                    else:
+                        print(f"Advertencia: Chunk {chunk_id} no encontrado durante el ensamblado.")
+
+            print(f"Audio final ensamblado exitosamente en: {output_path}")
+            
+            # Marcar como realmente finalizado solo si el ensamblado tuvo éxito
+            if status.get("completed_chunks", 0) >= status.get("total_chunks", 0):
+                status["is_finished"] = True
+                status["is_optimized"] = True # Marcamos que ya no necesita chunks
+                
+                with open(status_path, "w", encoding="utf-8") as f:
+                    json.dump(status, f, indent=4)
+                
+                # Eliminar carpeta de chunks para ahorrar espacio
+                import shutil
+                if os.path.exists(audio_chunks_dir):
+                    shutil.rmtree(audio_chunks_dir)
+                    print(f"Carpeta de chunks eliminada para {project_id} (Optimizado).")
+                    
+        except Exception as e:
+            print(f"Error crítico durante el ensamblado de audio: {e}")
+            # No marcamos como finished si hubo un error en el ensamblado
+            raise e
 
     def delete_project(self, project_id):
         import shutil

@@ -131,6 +131,10 @@ def create_project():
 @app.route("/api/projects/<project_id>/chunk/<int:chunk_id>/prepare", methods=["POST"])
 def prepare_chunk(project_id, chunk_id):
     try:
+        project = manager.get_project(project_id)
+        if project and project.get("is_optimized"):
+            return jsonify({"error": "Project is optimized. Chunks are no longer available for playback, but you can download the full audio."}), 400
+            
         manager.process_chunk(project_id, chunk_id)
         return jsonify({"status": "ready", "chunk_id": chunk_id})
     except Exception as e:
@@ -171,14 +175,10 @@ def get_chunk_audio(project_id, chunk_id):
 
     # Si no existe, generarlo (esta es la parte "on-demand" del streaming persistente)
     try:
-        # Nota: manager.process_next_chunk procesa el SIGUIENTE pendiente.
-        # Pero aquí queremos un chunk específico. Necesitamos un método para eso.
-        # Por simplicidad, si estamos en streaming, solemos ir en orden.
-        # Pero para ser robustos, añadiremos un método 'process_specific_chunk' al manager.
-        # O simplemente usamos el mecanismo de 'process_next_chunk' si el ID coincide.
-        
-        # Por ahora, usemos el manager para generar este chunk específico.
-        # Modificaré manager.py para añadir process_chunk(pid, cid)
+        project = manager.get_project(project_id)
+        if project and project.get("is_optimized"):
+             return jsonify({"error": "Project is optimized. Use full download."}), 410 # Gone
+             
         manager.process_chunk(project_id, chunk_id)
         return send_file(chunk_path, mimetype="audio/wav")
     except Exception as e:
@@ -216,9 +216,12 @@ def download_project_audio(project_id):
         completed = status.get("completed_chunks", 0)
         
         if status.get("is_finished") or (completed >= total):
-            manager.assemble_audio(project_id)
-            if os.path.exists(final_path):
-                return send_file(final_path, as_attachment=True, download_name=f"{custom_name}.wav", mimetype="audio/wav")
+            try:
+                manager.assemble_audio(project_id)
+                if os.path.exists(final_path):
+                    return send_file(final_path, as_attachment=True, download_name=f"{custom_name}.wav", mimetype="audio/wav")
+            except Exception as e:
+                return jsonify({"error": f"Error assembling audio: {str(e)}"}), 500
 
     return jsonify({"error": "Audio not ready for download. Please wait until conversion finishes."}), 404
 

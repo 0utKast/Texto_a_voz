@@ -5,6 +5,7 @@ import time
 import re
 import soundfile as sf
 import numpy as np
+import ctypes
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
 
@@ -16,10 +17,48 @@ ESPEAK_PATH = r"C:\Program Files\eSpeak NG"
 os.environ["PHONEMIZER_ESPEAK_PATH"] = ESPEAK_PATH
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['PROJECTS_FOLDER'] = 'projects'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PROJECTS_FOLDER'], exist_ok=True)
+
+def boost_performance():
+    """Eleva la prioridad del proceso y desactiva el throttling de energía en Windows."""
+    try:
+        # 1. Establecer prioridad 'Above Normal' (Por encima de lo normal)
+        # Los valores son: 0x80 (Above Normal), 0x20 (Normal), 0x100 (High)
+        ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetCurrentProcess()
+        if kernel32.SetPriorityClass(handle, ABOVE_NORMAL_PRIORITY_CLASS):
+            print("[BOOST] Prioridad del proceso elevada a 'Above Normal'.")
+        
+        # 2. Desactivar Windows Power Throttling (Solo Windows 10/11)
+        # Basado en la API SetProcessInformation
+        PROCESS_POWER_THROTTLING_CURRENT_VERSION = 1
+        PROCESS_POWER_THROTTLING_EXECUTION_SPEED = 0x1
+        
+        class PROCESS_POWER_THROTTLING_STATE(ctypes.Structure):
+            _fields_ = [
+                ("Version", ctypes.c_ulong),
+                ("ControlMask", ctypes.c_ulong),
+                ("StateMask", ctypes.c_ulong),
+            ]
+        
+        state = PROCESS_POWER_THROTTLING_STATE()
+        state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION
+        # ControlMask indica qué queremos cambiar, StateMask indica el valor
+        # Para desactivar: ControlMask = SPEED, StateMask = 0
+        state.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+        state.StateMask = 0 
+        
+        # ProcessPowerThrottling = 4
+        if kernel32.SetProcessInformation(handle, 4, ctypes.byref(state), ctypes.sizeof(state)):
+            print("[BOOST] Windows Power Throttling desactivado para este proceso.")
+        
+    except Exception as e:
+        print(f"[BOOST] No se pudo optimizar el rendimiento: {e}")
+
+# Ejecutar optimización al arrancar
+boost_performance()
 
 # Inicializar Manager y Processor
 # Nota: manager inicializa Kokoro internamente

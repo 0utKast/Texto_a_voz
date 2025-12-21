@@ -13,9 +13,9 @@ cd /d "%~dp0"
 :: Abrir el navegador despues de un breve retraso
 start http://127.0.0.1:5000
 
-:: Iniciar el servidor de Flask
-echo Iniciando servidor Flask...
-python app.py
+:: Iniciar el servidor de Flask con prioridad alta
+echo Iniciando servidor Flask (Rendimiento Optimizado)...
+start /abovenormal /wait python app.py
 
 if %ERRORLEVEL% neq 0 (
     echo.

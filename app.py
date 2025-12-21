@@ -17,6 +17,8 @@ ESPEAK_PATH = r"C:\Program Files\eSpeak NG"
 os.environ["PHONEMIZER_ESPEAK_PATH"] = ESPEAK_PATH
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['PROJECTS_FOLDER'] = 'projects'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PROJECTS_FOLDER'], exist_ok=True)
 

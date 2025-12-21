@@ -20,6 +20,45 @@ class BatchManager:
         self.kokoro = Kokoro(model_path, voices_path)
         print("Modelo cargado.")
 
+    def _get_voice_style(self, voice_spec):
+        """
+        Obtiene el estilo de voz. Soporta:
+        1. Nombre de voz simple: "af_bella"
+        2. Mezcla de voces: "ef_dora:0.7,em_alex:0.3"
+        """
+        if "," in voice_spec or ":" in voice_spec:
+            try:
+                # Caso de mezcla: "v1:w1,v2:w2"
+                parts = voice_spec.split(",")
+                total_style = None
+                total_weight = 0
+                
+                for part in parts:
+                    if ":" in part:
+                        v_name, weight_str = part.split(":")
+                        weight = float(weight_str)
+                    else:
+                        v_name = part
+                        weight = 1.0 # Default si no hay peso
+                    
+                    style = self.kokoro.get_voice_style(v_name.strip())
+                    if total_style is None:
+                        total_style = style * weight
+                    else:
+                        total_style += style * weight
+                    total_weight += weight
+                
+                # Normalizar pesos
+                if total_weight > 0:
+                    total_style = total_style / total_weight
+                return total_style
+            except Exception as e:
+                print(f"Error parseando mezcla de voz '{voice_spec}': {e}. Usando voz por defecto.")
+                return "af_bella" # Fallback
+        
+        # Caso normal: solo el nombre de la voz
+        return voice_spec
+
     def create_project(self, name, chunks, voice, speed, lang):
         # Sanitizar nombre para evitar errores en Windows (caracteres no permitidos: \ / : * ? " < > |)
         clean_name = re.sub(r'[\\/:*?"<>|]', '', name).replace(' ', '_')
@@ -156,9 +195,13 @@ class BatchManager:
                 
                 for i, sub_text in enumerate(sub_chunks):
                     print(f"  > Generando sub-parte {i+1}/{len(sub_chunks)}...")
+                    
+                    # Soporte para mezcla de voces
+                    voice_obj = self._get_voice_style(status["voice"])
+                    
                     samples, sr = self.kokoro.create(
                         sub_text, 
-                        voice=status["voice"], 
+                        voice=voice_obj, 
                         speed=status["speed"], 
                         lang=status["lang"]
                     )
@@ -227,9 +270,13 @@ class BatchManager:
         try:
             # Generar audio
             print(f"Procesando chunk {next_chunk['id']} de {status['total_chunks']}...")
+            
+            # Soporte para mezcla de voces
+            voice_obj = self._get_voice_style(status["voice"])
+            
             samples, sample_rate = self.kokoro.create(
                 next_chunk["text"], 
-                voice=status["voice"], 
+                voice=voice_obj, 
                 speed=status["speed"], 
                 lang=status["lang"]
             )

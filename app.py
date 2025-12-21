@@ -77,6 +77,9 @@ VOICE_LANG_MAP = {
     "bm": {"lang": "en-gb", "label": "English (UK) - Male"},
     "ef": {"lang": "es", "label": "Spanish - Female"},
     "em": {"lang": "es", "label": "Spanish - Male"},
+    "ef_dora": {"lang": "es", "label": "Spanish (Dora) - Female"},
+    "em_alex": {"lang": "es", "label": "Spanish (Alex) - Male"},
+    "em_santa": {"lang": "es", "label": "Spanish (Santa) - Male"},
     "ff": {"lang": "fr", "label": "French - Female"},
     "if": {"lang": "it", "label": "Italian - Female"},
     "im": {"lang": "it", "label": "Italian - Male"},
@@ -279,7 +282,10 @@ def speak():
         return jsonify({"error": "No text provided"}), 400
 
     try:
-        samples, sample_rate = manager.kokoro.create(text, voice=voice, speed=speed, lang=lang)
+        # Soporte para mezcla de voces
+        voice_obj = manager._get_voice_style(voice)
+        
+        samples, sample_rate = manager.kokoro.create(text, voice=voice_obj, speed=speed, lang=lang)
         buffer = io.BytesIO()
         sf.write(buffer, samples, sample_rate, format='WAV')
         buffer.seek(0)

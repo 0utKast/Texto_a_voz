@@ -364,6 +364,71 @@
             }
         }
 
+        /* Mixer Styles */
+        .mixer-container {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .mixer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .mixer-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #818cf8;
+        }
+
+        .mixer-grid {
+            display: grid;
+            grid-template-columns: 1fr 80px 1fr;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .mixer-voice-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .mixer-weight-display {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .mixer-slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .preview-mini-btn {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid var(--primary);
+            color: white;
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preview-mini-btn:hover {
+            background: var(--primary);
+        }
+
         @media (max-width: 850px) {
             .container {
                 grid-template-columns: 1fr;
@@ -399,12 +464,47 @@
                 <textarea id="text" placeholder="Escribe aquí o sube un libro..."></textarea>
             </div>
 
+            <div class="mixer-container" id="mixer-section">
+                <div class="mixer-header">
+                    <span class="mixer-title">🎚️ Mezclador de Voz (Pro)</span>
+                    <button id="preview-blend-btn" class="preview-mini-btn">Escuchar Mezcla</button>
+                </div>
+                <div class="mixer-grid">
+                    <div class="mixer-voice-col">
+                        <label>Voz A (Principal)</label>
+                        <select id="voice-a" class="voice-selector"></select>
+                        <div id="weight-a-display" class="mixer-weight-display">70%</div>
+                    </div>
+                    <div class="mixer-slider-container">
+                        <input type="range" id="mixer-ratio" min="0" max="100" value="70"
+                            style="width: 100px; transform: rotate(0deg);">
+                        <span style="font-size: 0.7rem; color: #64748b;">Balance</span>
+                    </div>
+                    <div class="mixer-voice-col">
+                        <label>Voz B (Matiz)</label>
+                        <select id="voice-b" class="voice-selector"></select>
+                        <div id="weight-b-display" class="mixer-weight-display">30%</div>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; font-size: 0.75rem; color: #64748b; text-align: center;">
+                    Crea voces únicas mezclando los matices de dos locutores.
+                </div>
+            </div>
+
             <div class="controls">
-                <div>
-                    <label>Voz Neuronal</label>
+                <div style="grid-column: 1 / span 2;">
+                    <label>Usar Mezcla o Voz Individual</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="checkbox" id="use-mixer" checked
+                            style="width: 20px; height: 20px; cursor: pointer;">
+                        <span style="font-size: 0.9rem; color: #cbd5e1;">Activar Mezclador Personalizado</span>
+                    </div>
+                </div>
+                <div id="single-voice-container" style="display: none;">
+                    <label>Voz Individual</label>
                     <select id="voice"></select>
                 </div>
-                <div>
+                <div id="speed-container" style="grid-column: 1 / span 2;">
                     <label>Velocidad</label>
                     <input type="range" id="speed" min="0.5" max="2.0" step="0.1" value="1.0">
                     <div class="speed-val">
@@ -471,6 +571,17 @@
         const downloadZone = document.getElementById('download-zone');
         const downloadLink = document.getElementById('download-link');
 
+        // Mixer Elements
+        const useMixerCheck = document.getElementById('use-mixer');
+        const mixerSection = document.getElementById('mixer-section');
+        const singleVoiceContainer = document.getElementById('single-voice-container');
+        const voiceA = document.getElementById('voice-a');
+        const voiceB = document.getElementById('voice-b');
+        const mixerRatio = document.getElementById('mixer-ratio');
+        const weightADisplay = document.getElementById('weight-a-display');
+        const weightBDisplay = document.getElementById('weight-b-display');
+        const previewBlendBtn = document.getElementById('preview-blend-btn');
+
         let currentProjectId = null;
         let totalChunks = 0;
         let currentChunkIndex = -1;
@@ -492,18 +603,45 @@
                     groups[v.group].push(v);
                 });
                 voiceSelect.innerHTML = '';
+                voiceA.innerHTML = '';
+                voiceB.innerHTML = '';
+
                 for (const gName in groups) {
-                    const group = document.createElement('optgroup');
-                    group.label = gName;
+                    const createGroup = () => {
+                        const gp = document.createElement('optgroup');
+                        gp.label = gName;
+                        return gp;
+                    };
+
+                    const group = createGroup();
+                    const groupA = createGroup();
+                    const groupB = createGroup();
+
                     groups[gName].forEach(v => {
-                        const opt = document.createElement('option');
-                        opt.value = v.id;
-                        opt.textContent = v.label;
-                        opt.dataset.lang = v.lang;
+                        const createOpt = () => {
+                            const opt = document.createElement('option');
+                            opt.value = v.id;
+                            opt.textContent = v.label;
+                            opt.dataset.lang = v.lang;
+                            return opt;
+                        };
+
+                        const opt = createOpt();
+                        const optA = createOpt();
+                        const optB = createOpt();
+
                         if (v.id === 'em_alex') opt.selected = true;
+                        if (v.id === 'ef_dora') optA.selected = true;
+                        if (v.id === 'em_alex') optB.selected = true;
+
                         group.appendChild(opt);
+                        groupA.appendChild(optA);
+                        groupB.appendChild(optB);
                     });
+
                     voiceSelect.appendChild(group);
+                    voiceA.appendChild(groupA);
+                    voiceB.appendChild(groupB);
                 }
             } catch (err) { console.error('Error cargando voces', err); }
         }
@@ -804,6 +942,51 @@
             });
         });
 
+        // --- EVENTOS DEL MEZCLADOR ---
+        useMixerCheck.onchange = () => {
+            mixerSection.style.display = useMixerCheck.checked ? 'block' : 'none';
+            singleVoiceContainer.style.display = useMixerCheck.checked ? 'none' : 'block';
+        };
+
+        mixerRatio.oninput = () => {
+            const val = mixerRatio.value;
+            weightADisplay.textContent = `${val}%`;
+            weightBDisplay.textContent = `${100 - val}%`;
+        };
+
+        previewBlendBtn.onclick = async () => {
+            const text = "Hola, esta es una prueba de mi voz personalizada.";
+            const weightA = mixerRatio.value / 100;
+            const weightB = (100 - mixerRatio.value) / 100;
+            const voiceSpec = `${voiceA.value}:${weightA.toFixed(2)},${voiceB.value}:${weightB.toFixed(2)}`;
+            const lang = voiceA.options[voiceA.selectedIndex].dataset.lang;
+
+            previewBlendBtn.disabled = true;
+            previewBlendBtn.textContent = "⏳...";
+
+            try {
+                const res = await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: text,
+                        voice: voiceSpec,
+                        speed: 1.0,
+                        lang: lang
+                    })
+                });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                audio.play();
+            } catch (err) {
+                alert('Error en previsualización');
+            } finally {
+                previewBlendBtn.disabled = false;
+                previewBlendBtn.textContent = "Escuchar Mezcla";
+            }
+        };
+
         textInput.oninput = () => {
             // Si el usuario cambia el texto, habilitar de nuevo la creación de proyecto
             if (isSessionResumed && !textInput.value.startsWith("Sesión recuperada:")) {
@@ -861,12 +1044,22 @@
             spinner.style.display = 'block';
             btnText.textContent = 'Inicializando...';
 
+            let voiceFinal = voiceSelect.value;
+            let langFinal = voiceSelect.options[voiceSelect.selectedIndex].dataset.lang;
+
+            if (useMixerCheck.checked) {
+                const weightA = mixerRatio.value / 100;
+                const weightB = (100 - mixerRatio.value) / 100;
+                voiceFinal = `${voiceA.value}:${weightA.toFixed(2)},${voiceB.value}:${weightB.toFixed(2)}`;
+                langFinal = voiceA.options[voiceA.selectedIndex].dataset.lang;
+            }
+
             const payload = {
                 name: text.substring(0, 30),
                 text: text,
-                voice: voiceSelect.value,
+                voice: voiceFinal,
                 speed: speedInput.value,
-                lang: voiceSelect.options[voiceSelect.selectedIndex].dataset.lang
+                lang: langFinal
             };
 
             try {

@@ -441,6 +441,112 @@
                 padding-top: 20px;
             }
         }
+
+        /* Reading Mode / Karaoke */
+        .reading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-gradient);
+            z-index: 1000;
+            padding: 40px;
+            overflow-y: hidden;
+            flex-direction: column;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .reading-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 0 20px;
+        }
+
+        .btn-close-reading {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-close-reading:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: #ef4444;
+        }
+
+        .reading-content {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 60px;
+            overflow-y: auto;
+            font-size: 1.8rem;
+            line-height: 1.6;
+            color: #94a3b8;
+            scroll-behavior: smooth;
+            text-align: center;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .reading-content span {
+            transition: all 0.3s ease;
+            position: relative;
+            display: inline-block;
+            margin: 0 4px;
+        }
+
+        .reading-content span.highlight {
+            color: #fff;
+            text-shadow: 0 0 15px rgba(99, 102, 241, 0.8);
+            transform: scale(1.05);
+            font-weight: 600;
+        }
+
+        .reading-content span.past {
+            color: #475569;
+        }
+
+        .reading-footer {
+            margin-top: 30px;
+            padding: 0 20px;
+            text-align: center;
+        }
+
+        .reading-stats {
+            font-size: 0.9rem;
+            color: #818cf8;
+            margin-bottom: 10px;
+        }
+
+        /* Ambient light effect for reading */
+        .ambient-light {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @media (max-width: 768px) {
+            .reading-content {
+                font-size: 1.3rem;
+                padding: 30px;
+            }
+        }
     </style>
 </head>
 
@@ -547,6 +653,32 @@
                 <a id="download-link" href="#" class="btn-download">
                     📥 Descargar WAV Completo
                 </a>
+            </div>
+
+            <button id="open-reading-btn" class="btn-primary"
+                style="margin-top: 20px; width: auto; align-self: center; display: none;">
+                📖 Abrir Modo Lectura (Karaoke)
+            </button>
+        </div>
+    </div>
+
+    <!-- Modo Lectura / Karaoke -->
+    <div id="reading-overlay" class="reading-overlay">
+        <div class="ambient-light"></div>
+        <div class="reading-header">
+            <div>
+                <h2 id="reading-title" style="color: #fff; font-size: 1.5rem;">Visualizador de Lectura</h2>
+                <div id="reading-subtitle" style="color: #818cf8; font-size: 0.9rem;">Sincronización Inteligente</div>
+            </div>
+            <button id="close-reading-btn" class="btn-close-reading">Cerrar</button>
+        </div>
+        <div id="reading-content" class="reading-content">
+            <!-- El texto se cargará aquí dinámicamente -->
+        </div>
+        <div class="reading-footer">
+            <div id="reading-stats" class="reading-stats">Parte 1 de 10 - 0:00</div>
+            <div style="max-width: 600px; margin: 0 auto;">
+                <audio id="reading-player" style="width: 100%; height: 40px;"></audio>
             </div>
         </div>
     </div>
@@ -1081,6 +1213,129 @@
                 spinner.style.display = 'none';
                 btnText.textContent = 'Comenzar Lectura Fluida';
             }
+        };
+
+        const openReadingBtn = document.getElementById('open-reading-btn');
+        const readingOverlay = document.getElementById('reading-overlay');
+        const closeReadingBtn = document.getElementById('close-reading-btn');
+        const readingContent = document.getElementById('reading-content');
+        const readingTitle = document.getElementById('reading-title');
+        const readingStats = document.getElementById('reading-stats');
+        const readingCloseBtn = document.getElementById('close-reading-btn');
+
+        // Controles de reproducción en modo lectura
+        const readingPlayBtn = document.createElement('button');
+        readingPlayBtn.innerHTML = '⏸️ Pausar';
+        readingPlayBtn.className = 'btn-primary';
+        readingPlayBtn.style.width = 'auto';
+        readingPlayBtn.style.margin = '10px auto';
+        document.querySelector('.reading-footer').prepend(readingPlayBtn);
+
+        readingPlayBtn.onclick = () => {
+            const currentPlayer = activePlayer === 'A' ? playerA : playerB;
+            if (currentPlayer.paused) {
+                currentPlayer.play();
+                readingPlayBtn.innerHTML = '⏸️ Pausar';
+            } else {
+                currentPlayer.pause();
+                readingPlayBtn.innerHTML = '▶️ Reanudar';
+            }
+        };
+
+        let karaokeMetadata = [];
+        let currentChunkMetadata = null;
+        let lastMetadataFetchIdx = -1;
+
+        // --- LÓGICA DE KARAOKE ---
+
+        async function fetchChunkMetadata(index) {
+            if (lastMetadataFetchIdx === index) return;
+            try {
+                const res = await fetch(`/api/projects/${currentProjectId}/chunk/${index}/metadata`);
+                if (res.ok) {
+                    currentChunkMetadata = await res.json();
+                    lastMetadataFetchIdx = index;
+                    renderReadingContent();
+                }
+            } catch (err) { console.error("Error fetching metadata:", err); }
+        }
+
+        function renderReadingContent() {
+            // Esta función podría ser más inteligente, por ahora solo muestra el chunk actual
+            // pero podríamos mostrar todo y resaltar
+            if (!currentChunkMetadata) return;
+
+            readingContent.innerHTML = '';
+            currentChunkMetadata.forEach((item, idx) => {
+                const span = document.createElement('span');
+                span.id = `sub-chunk-${idx}`;
+                span.textContent = item.text;
+                readingContent.appendChild(span);
+            });
+        }
+
+        function updateKaraokeHighlight(currentTime) {
+            if (!currentChunkMetadata) return;
+
+            let elapsed = 0;
+            let activeIdx = -1;
+
+            for (let i = 0; i < currentChunkMetadata.length; i++) {
+                const item = currentChunkMetadata[i];
+                if (currentTime >= elapsed && currentTime < elapsed + item.duration) {
+                    activeIdx = i;
+                    break;
+                }
+                elapsed += item.duration;
+            }
+
+            // Actualizar clases
+            const spans = readingContent.querySelectorAll('span');
+            spans.forEach((span, idx) => {
+                if (idx === activeIdx) {
+                    if (!span.classList.contains('highlight')) {
+                        span.className = 'highlight';
+                        // Scroll suave si no está visible
+                        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                } else if (idx < activeIdx) {
+                    span.className = 'past';
+                } else {
+                    span.className = '';
+                }
+            });
+
+            readingStats.textContent = `Parte ${currentChunkIndex + 1} de ${totalChunks} — ${Math.round(currentTime)}s / ${Math.round(elapsed + (currentChunkMetadata[activeIdx]?.duration || 0))}s`;
+        }
+
+        // Integrar con los reproductores existentes
+        [playerA, playerB].forEach(p => {
+            p.addEventListener('timeupdate', () => {
+                if (readingOverlay.style.display === 'flex') {
+                    updateKaraokeHighlight(p.currentTime);
+                }
+            });
+
+            p.addEventListener('play', () => {
+                if (currentProjectId) fetchChunkMetadata(currentChunkIndex);
+            });
+        });
+
+        openReadingBtn.onclick = () => {
+            readingOverlay.style.display = 'flex';
+            readingTitle.textContent = "Lectura: " + (document.querySelector('.session-item.active strong')?.textContent || "Documento");
+            fetchChunkMetadata(currentChunkIndex);
+        };
+
+        closeReadingBtn.onclick = () => {
+            readingOverlay.style.display = 'none';
+        };
+
+        // Mostrar botón de lectura cuando hay un proyecto activo
+        const originalInitializeProject = initializeProject;
+        initializeProject = async (project, isResuming) => {
+            await originalInitializeProject(project, isResuming);
+            openReadingBtn.style.display = 'inline-flex';
         };
 
         loadVoices();

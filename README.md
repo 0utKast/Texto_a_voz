@@ -1,11 +1,12 @@
-# Kokoro Pro AI TTS 🚀 (Alpha v0.1.1)
+# Kokoro Pro AI TTS 🚀 (Alpha v0.1.2)
 
-¡Un lector de documentos inteligente, persistente, local y gratuito!
+¡Un lector de documentos inteligente, persistente, local y gratuito con Karaoke sincronizado!
 
-Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y documentos (PDF, Word, TXT) en voz humana de alta calidad. A diferencia de un simple conversor, esta versión permite **gestionar una biblioteca de lecturas** y retomar tu progreso en cualquier momento.
+Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y documentos (PDF, Word, TXT) en voz humana de alta calidad. A diferencia de un simple conversor, esta versión permite **gestionar una biblioteca de lecturas** y disfrutar de una experiencia visual sincronizada.
 
 ## ✨ Características Principales
 
+- **Modo Lectura Surround (Karaoke):** Visualiza el texto en pantalla grande con resaltado dinámico sincronizado palabra por palabra (o frase por frase) con la voz de la IA.
 - **Persistencia y Sesiones:** Guarda tus lecturas automáticamente. Cierra la aplicación y vuelve días después; podrás reanudar tu libro exactamente donde lo dejaste.
 - **Streaming Fluido (Alpha-Ready):** Sistema de doble reproductor optimizado que elimina las pausas entre fragmentos de texto para una lectura continua.
 - **Conversión de Fondo Continua:** El sistema ahora procesa el documento completo sin detenerse, independientemente de tu posición de lectura.
@@ -14,7 +15,7 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
   - **Renombrar Sesiones:** Personaliza el título de tus lecturas (ideal para grandes bibliotecas).
   - **Descarga Inteligente:** Descarga el audio total en WAV con el nombre personalizado que elijas.
   - **Borrado Seguro:** Elimina proyectos y sus archivos de audio con un clic.
-- **Voces Neuronales Premium:** Incluye voces como "Em Alex" por defecto para una experiencia superior en español.
+- **Voces Neuronales Premium:** Incluye voces como "Em Alex" y "Ef Dora" con soporte para mezcla de voces (voice blending).
 - **100% Privado y Local:** Funciona totalmente offline, sin costes ni límites.
 
 ## 🛠️ Requisitos
@@ -45,11 +46,17 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 ## 📂 Estructura del Proyecto
 
 - `app.py`: Servidor Flask (API REST) para gestión de sesiones y streaming.
-- `manager.py`: Motor de procesamiento por lotes y gestión de estado.
+- `manager.py`: Motor de procesamiento por lotes y gestión de estado con generación de metadatos para Karaoke.
 - `processor.py`: Extracción de texto y segmentación inteligente.
-- `templates/index.html`: UI moderna con feedback dinámico del buffer.
+- `templates/index.html`: UI moderna con feedback dinámico y Modo Lectura Surround.
 
 ## 📈 Historial de Versiones (Alpha)
+
+- **v0.1.2 (Alpha):**
+  - **Nuevo: Modo Lectura (Karaoke)** con estética premium y resaltado sincronizado.
+  - Implementación de metadatos de duración para cada fragmento de audio.
+  - Nueva ruta API para metadatos de sincronización.
+  - UI mejorada con controles de pausa en el modo lectura.
 
 - **v0.1.1 (Alpha):**
   - Eliminado el límite de buffer: la conversión ahora es continua hasta el final del documento.

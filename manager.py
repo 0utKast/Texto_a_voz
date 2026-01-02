@@ -60,8 +60,16 @@ class BatchManager:
         return voice_spec
 
     def create_project(self, name, chunks, voice, speed, lang):
-        # Sanitizar nombre para evitar errores en Windows (caracteres no permitidos: \ / : * ? " < > |)
-        clean_name = re.sub(r'[\\/:*?"<>|]', '', name).replace(' ', '_')
+        # Sanitizar nombre para evitar errores en Windows
+        # 1. Eliminar caracteres de control (como \n, \r, \t)
+        clean_name = "".join(c for c in name if c.isprintable())
+        # 2. Eliminar caracteres no permitidos en Windows: \ / : * ? " < > |
+        clean_name = re.sub(r'[\\/:*?"<>|]', '', clean_name)
+        # 3. Reemplazar espacios por guiones bajos y limpiar extremos
+        clean_name = clean_name.replace(' ', '_').strip(' ._')
+        # 4. Limitar longitud para evitar problemas de ruta larga
+        clean_name = clean_name[:50]
+        
         project_id = f"{int(time.time())}_{clean_name}"
         project_path = os.path.join(self.projects_dir, project_id)
         os.makedirs(project_path, exist_ok=True)
@@ -193,6 +201,7 @@ class BatchManager:
                 sub_chunks = split_text(text, max_chars)
                 print(f"Generando chunk {chunk_id} ({len(sub_chunks)} sub-partes seguro) para {project_id}...")
                 
+                metadata = []
                 for i, sub_text in enumerate(sub_chunks):
                     print(f"  > Generando sub-parte {i+1}/{len(sub_chunks)}...")
                     
@@ -205,12 +214,25 @@ class BatchManager:
                         speed=status["speed"], 
                         lang=status["lang"]
                     )
+                    
+                    # Calcular duración de esta sub-parte
+                    duration = len(samples) / sr
+                    metadata.append({
+                        "text": sub_text,
+                        "duration": duration
+                    })
+                    
                     all_samples.append(samples)
                     sample_rate = sr
                 
                 # Concatenar todos los sub-chunks en un solo audio
                 combined_samples = np.concatenate(all_samples)
                 sf.write(chunk_path, combined_samples, sample_rate)
+                
+                # Guardar metadata para Karaoke
+                meta_path = chunk_path.replace(".wav", ".json")
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(metadata, f)
                 
                 # Actualizar estado en memoria
                 chunk["status"] = "completed"
@@ -385,7 +407,9 @@ class BatchManager:
             with open(status_path, "r", encoding="utf-8") as f:
                 status = json.load(f)
             
-            status["name"] = new_name
+            # Sanitizar el nombre antes de guardarlo
+            clean_name = "".join(c for c in new_name if c.isprintable())
+            status["name"] = clean_name
             
             with open(status_path, "w", encoding="utf-8") as f:
                 # Usar indent=4 para que sea legible si el usuario lo abre, 

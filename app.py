@@ -228,6 +228,16 @@ def get_chunk_audio(project_id, chunk_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/projects/<project_id>/chunk/<int:chunk_id>/metadata")
+def get_chunk_metadata(project_id, chunk_id):
+    project_path = os.path.join(app.config['PROJECTS_FOLDER'], project_id)
+    meta_path = os.path.join(project_path, "audio_chunks", f"chunk_{chunk_id}.json")
+
+    if os.path.exists(meta_path):
+        return send_file(meta_path, mimetype="application/json")
+    
+    return jsonify({"error": "Metadata not found"}), 404
+
 @app.route("/api/projects/<project_id>/download")
 def download_project_audio(project_id):
     project_path = os.path.join(app.config['PROJECTS_FOLDER'], project_id)
@@ -242,7 +252,8 @@ def download_project_audio(project_id):
                 status = json.load(f)
                 custom_name = status.get("name", project_id)
                 # Sanitizar para nombre de archivo
-                custom_name = re.sub(r'[\\/:*?"<>|]', '', custom_name).strip()
+                custom_name = "".join(c for c in custom_name if c.isprintable())
+                custom_name = re.sub(r'[\\/:*?"<>|]', '', custom_name).strip(' ._')
                 if not custom_name: custom_name = project_id
         except:
             pass

@@ -13,7 +13,6 @@ venv/
 uploads/
 *.wav
 *.mp3
-
-# IDEs
-.vscode/
-.idea/
+# Datos de proyectos (locales)
+projects/
+*.wav.json

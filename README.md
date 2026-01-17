@@ -1,4 +1,4 @@
-# Kokoro Pro AI TTS 🚀 (Alpha v0.1.2)
+# Kokoro Pro AI TTS 🚀 (Alpha v0.1.3)
 
 ¡Un lector de documentos inteligente, persistente, local y gratuito con Karaoke sincronizado!
 
@@ -7,7 +7,7 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 ## ✨ Características Principales
 
 - **Modo Lectura Surround (Karaoke):** Visualiza el texto en pantalla grande con resaltado dinámico sincronizado palabra por palabra (o frase por frase) con la voz de la IA.
-- **Persistencia y Sesiones:** Guarda tus lecturas automáticamente. Cierra la aplicación y vuelve días después; podrás reanudar tu libro exactamente donde lo dejaste.
+- **Persistencia Robusta de Sesiones:** Guarda tus lecturas automáticamente. Gracias a un nuevo motor de gestión de estado atómico, tu progreso de lectura y conversión se sincroniza sin errores, incluso durante el procesamiento de fondo.
 - **Streaming Fluido (Alpha-Ready):** Sistema de doble reproductor optimizado que elimina las pausas entre fragmentos de texto para una lectura continua.
 - **Conversión de Fondo Continua:** El sistema ahora procesa el documento completo sin detenerse, independientemente de tu posición de lectura.
 - **Buffer de Seguridad Inteligente:** Ahora con retroalimentación en tiempo real. Configurado para arrancar rápido y mantener 0 cortes.
@@ -51,6 +51,11 @@ Esta aplicación utiliza el modelo de IA **Kokoro-82M** para convertir texto y d
 - `templates/index.html`: UI moderna con feedback dinámico y Modo Lectura Surround.
 
 ## 📈 Historial de Versiones (Alpha)
+
+- **v0.1.3 (Alpha):**
+  - **Motor de Persistencia Atómica:** Solucionado problema de pérdida de progreso de lectura durante la generación de audio.
+  - **Protección contra condiciones de carrera:** Implementado sistema de bloqueo y recarga de estado centralizado en el backend.
+  - **Tests Automatizados:** Incluido script de prueba de concurrencia (`test_state_persistence.py`) para validación de estabilidad.
 
 - **v0.1.2 (Alpha):**
   - **Nuevo: Modo Lectura (Karaoke)** con estética premium y resaltado sincronizado.
